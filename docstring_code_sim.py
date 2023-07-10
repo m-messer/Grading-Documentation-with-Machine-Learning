@@ -11,7 +11,7 @@ import re
 # # JavaDoc-Code Similarity
 # ### Login to Huggingface
 
-NUMBER_OF_CLASSES = 10
+NUMBER_OF_CLASSES = 10000
 MAX_TENSOR_SIZE = 514
 
 
@@ -113,7 +113,10 @@ def get_average_embeddings(natural_language, code, tokenizer, model):
     except IndexError as e:
         print("Index Error: ", e)
         print("With code_token_ids:", code_token_ids)
-        print("Model output:", model(torch.tensor(code_token_ids)))
+        return None, None
+    except RuntimeError as e:
+        print("Runtime error", e)
+        print("With NL Token IDs: ", nl_tokens_ids)
         return None, None
 
 
