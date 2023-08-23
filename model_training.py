@@ -349,5 +349,5 @@ for epoch in tqdm(range(1, EPOCHS + 1)):
 pd.DataFrame.from_dict(accuracy_stats).reset_index().melt(id_vars=['index']).rename(columns={'index': 'epochs'}).to_csv('data/accuracy_stats.csv')
 pd.DataFrame.from_dict(loss_stats).reset_index().melt(id_vars=['index']).rename(columns={'index': 'epochs'}).to_csv('data/loss_stats.csv')
 
-torch.save(model.state_dict(), "model_v1.pt")
+torch.save(model.state_dict(), "models/model_v1.pt")
 
