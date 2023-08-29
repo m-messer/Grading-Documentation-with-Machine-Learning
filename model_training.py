@@ -1,7 +1,7 @@
 #!/usr/bin/env python
 # coding: utf-8
 
-# In[1]:
+# In[5]:
 
 
 import pandas as pd
@@ -18,7 +18,7 @@ tqdm.pandas()
 
 # ### Load Dataset
 
-# In[2]:
+# In[6]:
 
 
 df = pd.read_pickle('data/processed.pickle')
@@ -27,7 +27,7 @@ df.head()
 
 # ### Get Embeddings
 
-# In[3]:
+# In[7]:
 
 
 EMBEDDING_DIMENSION = 400
@@ -53,7 +53,7 @@ def get_tokens_and_embeddings(natural_language, code, tokenizer, model):
     return tokens, len(tokens), padded.detach().numpy()
 
 
-# In[4]:
+# In[8]:
 
 
 device = torch.device("cuda" if torch.cuda.is_available() else "cpu")
@@ -64,14 +64,7 @@ bert_model.to(device)
 print()
 
 
-# In[5]:
-
-
-df = df.iloc[:100]
-df.head(10)
-
-
-# In[6]:
+# In[9]:
 
 
 df[['tokens', 'token_count', 'embeddings']] = df.progress_apply(lambda x: get_tokens_and_embeddings(x['docstring'], x['code'], tokenizer=bert_tokenizer, model=bert_model), axis=1, result_type='expand')
@@ -79,10 +72,16 @@ df = df.drop(columns=['split'])
 df.head()
 
 
+# In[10]:
+
+
+df.shape
+
+
 # ### Explore data
 # All below adapted from: https://towardsdatascience.com/pytorch-tabular-multiclass-classification-9f8211a123ab
 
-# In[7]:
+# In[11]:
 
 
 sns.countplot(df, x='relevance')
@@ -90,7 +89,7 @@ sns.countplot(df, x='relevance')
 
 # #### Create splits
 
-# In[8]:
+# In[12]:
 
 
 X = df[['embeddings']]
@@ -99,26 +98,26 @@ y = df[['relevance']]
 random_seed = 123
 
 
-# In[9]:
+# In[13]:
 
 
 X_trainval, X_test, y_trainval, y_test = train_test_split(X, y, test_size=0.2, stratify=y, random_state=random_seed)
 X_train, X_val, y_train, y_val = train_test_split(X_trainval, y_trainval, test_size=0.1, stratify=y_trainval, random_state=random_seed)
 
 
-# In[10]:
+# In[14]:
 
 
 sns.countplot(y_train, x='relevance')
 
 
-# In[11]:
+# In[15]:
 
 
 sns.countplot(y_val, x='relevance')
 
 
-# In[12]:
+# In[16]:
 
 
 sns.countplot(y_test, x='relevance')
@@ -126,7 +125,7 @@ sns.countplot(y_test, x='relevance')
 
 # ### Create dataloader
 
-# In[13]:
+# In[17]:
 
 
 class RelevanceDataset(Dataset):
@@ -141,7 +140,7 @@ class RelevanceDataset(Dataset):
         return len(self.X_data)
 
 
-# In[14]:
+# In[18]:
 
 
 train_dataset = RelevanceDataset(X_train, y_train)
@@ -151,7 +150,7 @@ test_dataset = RelevanceDataset(X_test, y_test)
 
 # #### Oversample Dataset
 
-# In[15]:
+# In[19]:
 
 
 target_list = []
@@ -172,7 +171,7 @@ weighted_sampler = WeightedRandomSampler(weights=class_weights_all, num_samples=
 
 # ### Model Parameters
 
-# In[16]:
+# In[20]:
 
 
 EPOCHS = 300
@@ -180,6 +179,7 @@ BATCH_SIZE = 16
 LEARNING_RATE = 0.0007
 
 KERNEL_SIZE = 5
+POOL_SIZE = 2
 HIDDEN_LAYER_SIZE = 256
 
 NUM_FEATURES = 400
@@ -188,29 +188,28 @@ NUM_CLASSES = 4
 
 # #### Setup Dataloaders
 
-# In[17]:
+# In[21]:
 
 
 train_loader = DataLoader(dataset=train_dataset, batch_size=BATCH_SIZE, sampler=weighted_sampler)
 val_loader = DataLoader(dataset=val_dataset, batch_size=1)
-test_loader = DataLoader(dataset=test_dataset, batch_size=1)
 
 
 # #### Define Model
 
-# In[33]:
+# In[59]:
 
 
 class Classifier(nn.Module):
-    def __init__(self, num_features, hidden_layer_size, kernel_size, num_class):
+    def __init__(self, num_features, hidden_layer_size, kernel_size, pool_size, num_class):
         super(Classifier, self).__init__()
 
         self.conv1 = nn.Conv1d(num_features, hidden_layer_size, kernel_size)
         self.conv2 = nn.Conv1d(hidden_layer_size, hidden_layer_size, kernel_size)
-        self.fc1 = nn.Linear(7424, 7424)
-        self.fc_out = nn.Linear(7424, num_class)
+        self.fc1 = nn.Linear(48384, 48384)
+        self.fc_out = nn.Linear(48384, num_class)
 
-        self.pool = nn.MaxPool1d(kernel_size)
+        self.pool = nn.MaxPool1d(pool_size)
         self.flatten = nn.Flatten()
         self.relu = nn.ReLU()
         self.dropout = nn.Dropout()
@@ -235,17 +234,17 @@ class Classifier(nn.Module):
 
 # #### Train Model
 
-# In[19]:
+# In[33]:
 
 
 device = torch.device("cuda:0" if torch.cuda.is_available() else "cpu")
 print(device)
 
 
-# In[34]:
+# In[60]:
 
 
-model = Classifier(num_features=NUM_FEATURES, hidden_layer_size=HIDDEN_LAYER_SIZE, kernel_size=KERNEL_SIZE, num_class=NUM_CLASSES)
+model = Classifier(num_features=NUM_FEATURES, hidden_layer_size=HIDDEN_LAYER_SIZE, kernel_size=KERNEL_SIZE, pool_size=POOL_SIZE, num_class=NUM_CLASSES)
 
 model.to(device)
 
@@ -255,7 +254,7 @@ optimizer = optim.Adam(model.parameters(), lr=LEARNING_RATE)
 model
 
 
-# In[21]:
+# In[42]:
 
 
 # TODO: What does this function measure?
@@ -281,7 +280,7 @@ loss_stats = {
 }
 
 
-# In[35]:
+# In[61]:
 
 
 print("Begin training...")
@@ -343,11 +342,19 @@ for epoch in tqdm(range(1, EPOCHS + 1)):
           f'Validation Accuracy: {val_epoch_acc / len(val_loader)}:.3f')
 
 
+# ### Save Model and Data for Visualization and Testing
+
 # In[ ]:
 
 
 pd.DataFrame.from_dict(accuracy_stats).reset_index().melt(id_vars=['index']).rename(columns={'index': 'epochs'}).to_csv('data/accuracy_stats.csv')
 pd.DataFrame.from_dict(loss_stats).reset_index().melt(id_vars=['index']).rename(columns={'index': 'epochs'}).to_csv('data/loss_stats.csv')
 
-torch.save(model.state_dict(), "models/model_v1.pt")
+torch.save(model.state_dict(), "model_v1.pt")
+
+
+# In[ ]:
+
+
+torch.save(test_dataset, 'data/test_dataset.pt')
 
