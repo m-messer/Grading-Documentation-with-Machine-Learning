@@ -12,6 +12,7 @@ from torch.utils.data import Dataset, WeightedRandomSampler, DataLoader
 from tqdm import tqdm
 import seaborn as sns
 from sklearn.model_selection import train_test_split
+from datetime import datetime
 
 tqdm.pandas()
 
@@ -347,14 +348,14 @@ for epoch in tqdm(range(1, EPOCHS + 1)):
 # In[ ]:
 
 
-pd.DataFrame.from_dict(accuracy_stats).reset_index().melt(id_vars=['index']).rename(columns={'index': 'epochs'}).to_csv('data/accuracy_stats.csv')
-pd.DataFrame.from_dict(loss_stats).reset_index().melt(id_vars=['index']).rename(columns={'index': 'epochs'}).to_csv('data/loss_stats.csv')
+pd.DataFrame.from_dict(accuracy_stats).reset_index().melt(id_vars=['index']).rename(columns={'index': 'epochs'}).to_csv('data/accuracy_stats_' + str(datetime.now()) + '.csv')
+pd.DataFrame.from_dict(loss_stats).reset_index().melt(id_vars=['index']).rename(columns={'index': 'epochs'}).to_csv('data/loss_stats_' + str(datetime.now()) + '.csv')
 
-torch.save(model.state_dict(), "model_v1.pt")
+torch.save(model.state_dict(), "model_v1_" + str(datetime.now()) + ".pt")
 
 
 # In[ ]:
 
 
-torch.save(test_dataset, 'data/test_dataset.pt')
+torch.save(test_dataset, 'data/test_dataset_' + str(datetime.now()) + '.pt')
 
