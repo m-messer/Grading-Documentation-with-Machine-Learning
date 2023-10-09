@@ -22,7 +22,7 @@ tqdm.pandas()
 # In[6]:
 
 
-df = pd.read_pickle('data/processed.pickle')
+df = pd.read_pickle('data/processed_2023-09-19 11:12:52.440709.pickle')
 df.head()
 
 
@@ -175,7 +175,7 @@ weighted_sampler = WeightedRandomSampler(weights=class_weights_all, num_samples=
 # In[20]:
 
 
-EPOCHS = 300
+EPOCHS = 150
 BATCH_SIZE = 16
 LEARNING_RATE = 0.0007
 
