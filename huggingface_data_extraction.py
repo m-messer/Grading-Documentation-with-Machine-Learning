@@ -1,7 +1,7 @@
 #!/usr/bin/env python
 # coding: utf-8
 
-# In[197]:
+# In[41]:
 
 
 import pandas as pd
@@ -13,7 +13,7 @@ tqdm.pandas()
 
 # ### Load CodeNetSearch Dataset and Append Relevance Scores
 
-# In[198]:
+# In[42]:
 
 
 relevance_df = pd.read_csv('data/annotationStore.csv')
@@ -21,7 +21,7 @@ relevance_df = relevance_df[relevance_df['Language'] == 'Java']
 relevance_df.head()
 
 
-# In[199]:
+# In[43]:
 
 
 # ds_train = load_dataset("code_search_net", "java", split='train+test+validation')
@@ -29,7 +29,7 @@ ds_train = load_dataset("code_search_net", "java", split='train[:1%]')
 ds_train
 
 
-# In[200]:
+# In[44]:
 
 
 def get_relevance(repo_url):
@@ -45,13 +45,13 @@ def is_ascii(s):
     return all(ord(c) < 128 for c in s)
 
 
-# In[201]:
+# In[45]:
 
 
 get_relevance('https://github.com/spring-projects/spring-boot/blob/0b27f7c70e164b2b1a96477f1d9c1acba56790c1/spring-boot-project/spring-boot/src/main/java/org/springframework/boot/info/GitProperties.java#L106-L118')
 
 
-# In[202]:
+# In[46]:
 
 
 relevance_list = []
@@ -71,7 +71,7 @@ assert len(relevance_list) == len(ds_train)
 assert any(relevance_list) is not None
 
 
-# In[209]:
+# In[47]:
 
 
 for a in relevance_list:
@@ -79,28 +79,57 @@ for a in relevance_list:
         print(a)
 
 
-# In[203]:
+# In[48]:
 
 
-ds_train = ds_train.add_column("relevance", relevance_list)
+ds_train = ds_train.add_column("label", relevance_list)
 ds_train
 
 
-# In[204]:
+# In[49]:
 
 
 ds_train = ds_train.remove_columns(['repository_name', 'func_path_in_repository', 'func_name', 'whole_func_string', 'language', 'func_code_url', 'split_name'])
 ds_train
 
 
-# In[210]:
+# In[50]:
 
 
-ds_train_filtered = ds_train.filter(lambda scored: scored['relevance'] is not None)
+ds_train_filtered = ds_train.filter(lambda scored: scored['label'] is not None)
 ds_train_filtered
 
 
-# In[206]:
+# In[53]:
+
+
+# Taken from CodeBERT Preprocessing steps
+
+def format_str(string):
+    for char in ['\r\n', '\r', '\n']:
+        string = string.replace(char, ' ')
+    return string
+
+
+# In[54]:
+
+
+def concat_nl_and_code(data):
+    data['text'] = format_str(data['func_documentation_string'] + '<CODESPLIT>' + data['func_code_string'])
+
+    return data
+
+ds_train_filtered = ds_train_filtered.map(concat_nl_and_code)
+ds_train_filtered
+
+
+# In[55]:
+
+
+ds_train_filtered[0]
+
+
+# In[ ]:
 
 
 ds_train_filtered.save_to_disk("data/code_search_net_relevance.hf")
