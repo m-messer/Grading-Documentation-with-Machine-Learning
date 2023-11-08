@@ -45,10 +45,10 @@ ds = ds.map(convert_to_binary)
 # In[45]:
 
 
-# ds_0 = ds.filter(lambda data: data['label'] == 0)
-# ds_1 = Dataset.from_dict(ds.filter(lambda data:data['label'] == 1)[:len(ds_0)])
-# ds = concatenate_datasets([ds_0, ds_1])
-# ds
+ds_0 = ds.filter(lambda data: data['label'] == 0)
+ds_1 = Dataset.from_dict(ds.filter(lambda data:data['label'] == 1)[:len(ds_0)])
+ds = concatenate_datasets([ds_0, ds_1])
+ds
 
 
 # #### Load tokenizer and preprocess
@@ -225,8 +225,11 @@ evaluator = evaluate.evaluator('text-classification')
 eval_results = evaluator.compute(
     model_or_pipeline=model,
     data=datasets['test'],
-    label_mapping=label2id
+    label_mapping=label2id,
+    tokenizer=tokenizer
 )
 
-print(eval_results)
+eval_results_formatted = {"val/" + key: item for key, item in eval_results.items()}
+
+wandb.log(eval_results_formatted)
 
