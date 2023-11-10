@@ -230,7 +230,7 @@ for train_idxs, val_idxs in splits:
     train_data = train_test['train'].select(train_idxs)
     validation_data = train_test['train'].select(val_idxs)
 
-    trainer = Trainer(
+    trainer = CustomTrainer(
         model=model,
         args=training_arguments,
         train_dataset=train_data,
