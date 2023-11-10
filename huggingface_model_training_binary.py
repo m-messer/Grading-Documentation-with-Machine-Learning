@@ -1,16 +1,18 @@
 #!/usr/bin/env python
 # coding: utf-8
 
-# In[42]:
+# In[45]:
 
 
 import torch.cuda
 from transformers import AutoTokenizer, DataCollatorWithPadding, AutoModelForSequenceClassification, TrainingArguments, Trainer
-from datasets import Dataset, DatasetDict, concatenate_datasets
+from datasets import Dataset, DatasetDict
 import evaluate
 import numpy as np
 import wandb
 import seaborn as sns
+from torch import nn
+from sklearn.model_selection import StratifiedKFold
 
 
 with open('secrets/wandb_api_key.txt') as f:
@@ -20,7 +22,7 @@ with open('secrets/wandb_api_key.txt') as f:
 # ### Train pre-trained model from hugging face
 # #### Load Dataset
 
-# In[43]:
+# In[46]:
 
 
 ds = Dataset.load_from_disk('data/code_search_net_relevance.hf')
@@ -29,7 +31,7 @@ ds
 
 # #### Convert groups to binary model
 
-# In[44]:
+# In[47]:
 
 
 def convert_to_binary(data):
@@ -40,27 +42,16 @@ def convert_to_binary(data):
 ds = ds.map(convert_to_binary)
 
 
-# #### Balance Dataset
-
-# In[45]:
-
-
-ds_0 = ds.filter(lambda data: data['label'] == 0)
-ds_1 = Dataset.from_dict(ds.filter(lambda data:data['label'] == 1)[:len(ds_0)])
-ds = concatenate_datasets([ds_0, ds_1])
-ds
-
-
 # #### Load tokenizer and preprocess
 
-# In[46]:
+# In[48]:
 
 
 # PRETRAINED_MODEL = 'distilbert-base-uncased'
 PRETRAINED_MODEL = 'microsoft/codebert-base'
 
 
-# In[47]:
+# In[49]:
 
 
 tokenizer = AutoTokenizer.from_pretrained(PRETRAINED_MODEL)
@@ -72,7 +63,7 @@ data_tokens = ds.map(preprocess)
 data_tokens
 
 
-# In[48]:
+# In[50]:
 
 
 # TODO maybe equalize both classes
@@ -80,19 +71,19 @@ data_tokens = data_tokens.remove_columns(['func_code_string', 'func_code_tokens'
 data_tokens
 
 
-# In[49]:
+# In[51]:
 
 
 sns.countplot(data_tokens.to_pandas(), x='label')
 
 
-# In[50]:
+# In[52]:
 
 
 data_collator = DataCollatorWithPadding(tokenizer=tokenizer)
 
 
-# In[51]:
+# In[53]:
 
 
 tokenizer.decode(data_tokens['input_ids'][0])
@@ -100,7 +91,7 @@ tokenizer.decode(data_tokens['input_ids'][0])
 
 # #### Evaluate
 
-# In[52]:
+# In[54]:
 
 
 f1 = evaluate.load('f1')
@@ -109,7 +100,7 @@ recall = evaluate.load('recall')
 precision = evaluate.load('precision')
 
 
-# In[53]:
+# In[55]:
 
 
 def compute_metrics(eval_pred):
@@ -136,47 +127,60 @@ def compute_metrics(eval_pred):
 
 # #### Split train and test set
 
-# In[54]:
-
-
-train_test_valid = data_tokens.train_test_split(test_size=0.1)
-test_valid = train_test_valid['test'].train_test_split(test_size=0.5)
-
-datasets = DatasetDict({
-    'train': train_test_valid['train'],
-    'test': test_valid['test'],
-    'valid': test_valid['train']
-})
-
-
-# In[55]:
-
-
-sns.countplot(datasets['train'].to_pandas(), x='label')
-
-
 # In[56]:
 
 
-sns.countplot(datasets['test'].to_pandas(), x='label')
+train_test = data_tokens.train_test_split(test_size=0.2)
 
 
 # In[57]:
 
 
-sns.countplot(datasets['valid'].to_pandas(), x='label')
+sns.countplot(train_test['train'].to_pandas(), x='label')
+
+
+# In[58]:
+
+
+sns.countplot(train_test['test'].to_pandas(), x='label')
 
 
 # #### Train
 
-# In[10]:
+# In[59]:
 
 
 id2label = {0: 'irrelevant', 1: 'relevant'}
 label2id = {'irrelevant': 0, 'relevant': 1}
 
 
-# In[11]:
+# #### Define custom Trainer to adjust weights for unbalanced classes
+# Adapted from: https://huggingface.co/docs/transformers/main_classes/trainer
+
+# In[60]:
+
+
+class_count = ds.to_pandas().groupby('label').count()['text'].to_list()
+total = sum(class_count)
+weights = [1 - (val / total) for val in class_count]
+weights
+
+
+# In[61]:
+
+
+class CustomTrainer(Trainer):
+    def compute_loss(self, model, inputs, return_outputs=False):
+        labels = inputs.pop('labels')
+        outputs = model(**inputs)
+        logits = outputs.get('logits')
+        loss_fn = nn.CrossEntropyLoss(weight=torch.tensor(weights, device=model.device))
+        loss = loss_fn(logits.view(-1, self.model.config.num_labels), labels.view(-1))
+
+        return (loss, outputs) if return_outputs else loss
+
+
+# In[62]:
 
 
 device = "cuda:0" if torch.cuda.is_available() else "cpu"
@@ -200,22 +204,48 @@ training_arguments = TrainingArguments(
     report_to=["wandb"]
 )
 
-trainer = Trainer(
-    model=model,
-    args=training_arguments,
-    train_dataset=datasets["train"],
-    eval_dataset=datasets["valid"],
-    tokenizer=tokenizer,
-    data_collator=data_collator,
-    compute_metrics=compute_metrics,
-)
 
-trainer.train()
+
+# trainer = Trainer(
+#     model=model,
+#     args=training_arguments,
+#     train_dataset=datasets["train"],
+#     eval_dataset=datasets["valid"],
+#     tokenizer=tokenizer,
+#     data_collator=data_collator,
+#     compute_metrics=compute_metrics,
+# )
+#
+# trainer.train()
+
+
+# In[66]:
+
+
+folds = StratifiedKFold(n_splits=10)
+
+splits = folds.split(np.zeros(train_test['train'].num_rows), train_test['train']['label'])
+
+for train_idxs, val_idxs in splits:
+    train_data = train_test['train'].select(train_idxs)
+    validation_data = train_test['train'].select(val_idxs)
+
+    trainer = Trainer(
+        model=model,
+        args=training_arguments,
+        train_dataset=train_data,
+        eval_dataset=validation_data,
+        tokenizer=tokenizer,
+        data_collator=data_collator,
+        compute_metrics=compute_metrics,
+    )
+
+    trainer.train()
 
 
 # ### Evaluation
 
-# In[ ]:
+# In[44]:
 
 
 model.eval()
@@ -224,9 +254,9 @@ evaluator = evaluate.evaluator('text-classification')
 
 eval_results = evaluator.compute(
     model_or_pipeline=model,
-    data=datasets['test'],
+    data=train_test['test'],
     label_mapping=label2id,
-    tokenizer=tokenizer
+    tokenizer=tokenizer,
 )
 
 eval_results_formatted = {"val/" + key: item for key, item in eval_results.items()}
