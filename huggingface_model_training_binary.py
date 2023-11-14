@@ -180,6 +180,9 @@ class CustomTrainer(Trainer):
         return (loss, outputs) if return_outputs else loss
 
 
+# #### Define custom Trainer to adjust weights for unbalanced classes
+# Adapted from: https://huggingface.co/docs/transformers/main_classes/trainer
+
 # In[62]:
 
 
