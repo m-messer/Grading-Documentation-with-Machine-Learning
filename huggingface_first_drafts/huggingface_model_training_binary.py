@@ -15,7 +15,7 @@ from torch import nn
 from sklearn.model_selection import StratifiedKFold
 
 
-with open('secrets/wandb_api_key.txt') as f:
+with open('../secrets/wandb_api_key.txt') as f:
     wandb.login(key=f.read())
 
     wandb.init(
@@ -29,7 +29,7 @@ with open('secrets/wandb_api_key.txt') as f:
 # In[46]:
 
 
-ds = Dataset.load_from_disk('data/code_search_net_relevance.hf')
+ds = Dataset.load_from_disk('../data/code_search_net_relevance.hf')
 ds
 
 
@@ -197,7 +197,7 @@ model.to(device)
 
 
 training_arguments = TrainingArguments(
-    output_dir='m-messer/JavaDoc_Code_Relevance_Classifier',
+    output_dir='../m-messer/JavaDoc_Code_Relevance_Classifier',
     learning_rate=2e-5,
     per_device_train_batch_size=8,
     per_device_eval_batch_size=8,
