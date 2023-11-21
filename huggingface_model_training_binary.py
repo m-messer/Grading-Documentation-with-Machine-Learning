@@ -18,6 +18,10 @@ from sklearn.model_selection import StratifiedKFold
 with open('secrets/wandb_api_key.txt') as f:
     wandb.login(key=f.read())
 
+    wandb.init(
+        project="JavaDoc-Relevance-Binary-Classifier"
+    )
+
 
 # ### Train pre-trained model from hugging face
 # #### Load Dataset
