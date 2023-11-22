@@ -1,5 +1,5 @@
 from data_curation import DataCurator
-from transformers import Trainer, TrainingArguments, AutoModelForSequenceClassification
+from transformers import Trainer, TrainingArguments, AutoModelForSequenceClassification, set_seed
 from torch import nn, tensor, cuda
 import wandb
 from sklearn.model_selection import StratifiedKFold
@@ -10,6 +10,8 @@ import evaluate
 class Train:
     def __init__(self, pre_trained_model, data_dir, wandb_project, output_dir, learning_rate, batch_size,
                  epochs, weight_decay, binary=False):
+
+        set_seed(100)
 
         with open('secrets/wandb_api_key.txt') as f:
             wandb.login(key=f.read())
@@ -105,6 +107,25 @@ class Train:
 
             trainer.train()
 
+    def evaluate(self):
+        self.model.eval()
+
+        evaluator = evaluate.evaluator('text-classification')
+
+        eval_results = evaluator.compute(
+            model_or_pipeline=self.model,
+            data=self.train_test_data['test'],
+            label_mapping=self.label2id,
+            tokenizer=self.data_curator.tokenizer,
+            input_column='input_ids',
+        )
+
+        eval_results_formatted = {"test/" + key: item for key, item in eval_results.items()}
+
+        print("Test Results:")
+        print(eval_results_formatted)
+        wandb.log(eval_results_formatted)
+
 
 class CustomTrainer(Trainer):
     def __init__(self, weights, model, args, train_dataset, eval_dataset, tokenizer, data_collator, compute_metrics):
@@ -140,3 +161,4 @@ if __name__ == '__main__':
         learning_rate=2e-5
     )
     train.train_with_cross_validation(10)
+    train.evaluate()
