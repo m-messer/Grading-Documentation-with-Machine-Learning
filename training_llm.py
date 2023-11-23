@@ -117,13 +117,12 @@ class Train:
             data=self.train_test_data['test'],
             label_mapping=self.label2id,
             tokenizer=self.data_curator.tokenizer,
-            input_column='input_ids',
         )
 
         eval_results_formatted = {"test/" + key: item for key, item in eval_results.items()}
 
         print("Test Results:")
-        print(eval_results_formatted)
+        print(str(eval_results_formatted))
         wandb.log(eval_results_formatted)
 
 
