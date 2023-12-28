@@ -1,3 +1,5 @@
+from sklearn.metrics import log_loss
+
 from data_curation import DataCurator
 import wandb
 import numpy as np
@@ -27,7 +29,6 @@ class Train:
         self.train_test_data = self.data.train_test_split(test_size=0.2)
 
         self.model = None
-        self.pool = nn.AvgPool1d(kernel_size=3, stride=2)
 
         if binary:
             self.id2label = {0: 'irrelevant', 1: 'relevant'}
@@ -58,12 +59,14 @@ class Train:
         precision_macro_res = self.precision.compute(predictions=predictions, references=labels, average='macro')
         precision_micro_res = self.precision.compute(predictions=predictions, references=labels, average='micro')
         precision_weighted_res = self.precision.compute(predictions=predictions, references=labels, average='weighted')
+        loss = log_loss(y_true=labels, y_pred=predictions)
 
         return {'accuracy': accuracy_res,
                 'f1_macro': f1_macro_res, 'f1_micro': f1_micro_res, 'f1_weighted': f1_weighted_res,
                 'recall_macro': recall_macro_res, 'recall_micro': recall_micro_res,
                 'recall_weighted': recall_weighted_res, 'precision_macro': precision_macro_res,
                 'precision_micro': precision_micro_res, 'precision_weighted': precision_weighted_res,
+                'loss': loss
                 }
 
     def get_embeddings(self, split: str):
