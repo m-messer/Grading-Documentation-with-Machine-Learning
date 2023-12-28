@@ -21,7 +21,13 @@ class Train:
             wandb.login(key=f.read())
 
             wandb.init(
-                project=wandb_project
+                project=wandb_project,
+                config={
+                    'model_type': 'LogisticRegression',
+                    'folds': 10,
+                    'vectorizer': 'microsoft/codebert',
+                    'embedding_reduction': 'mean'
+                }
             )
 
         self.data_curator = DataCurator(pre_trained_model, data_dir, binary)
