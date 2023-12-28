@@ -1,11 +1,12 @@
 from sklearn.metrics import log_loss
+from sklearn.model_selection import StratifiedKFold
 
 from data_curation import DataCurator
 import wandb
 import numpy as np
 import evaluate
 from random import seed
-from sklearn.linear_model import LogisticRegressionCV
+from sklearn.linear_model import LogisticRegressionCV, LogisticRegression
 from transformers import AutoModel
 import torch
 import torch.nn as nn
@@ -51,6 +52,9 @@ class Train:
         class_count = self.data.to_pandas().groupby('label').count()['input_ids'].to_list()
         total = sum(class_count)
         return [1 - (val / total) for val in class_count]
+
+    def format_metrics(self, metrics, prefix):
+        return {prefix + "/" + key: item for key, item in metrics.values()}
 
     def compute_metrics(self, eval_pred):
         predictions, labels = eval_pred
@@ -106,21 +110,29 @@ class Train:
         return embeddings
 
     def train_with_cross_validation(self, number_splits):
-        # TODO: Implement Straified CV, add wandb logging, loss function?
+        folds = StratifiedKFold(n_splits=number_splits)
 
-        X = self.get_embeddings('train')
+        splits = folds.split(np.zeros(self.train_test_data['train'].num_rows), self.train_test_data['train']['label'])
 
-        self.model = LogisticRegressionCV(cv=number_splits, max_iter=500)
-        y = self.train_test_data['train']['label']
+        for train_idxs, val_idxs in splits:
+            train_data = self.train_test_data['train'].select(train_idxs)
+            validation_data = self.train_test_data['train'].select(val_idxs)
 
-        self.model.fit(X, y)
-        metrics = self.compute_metrics((self.model.predict(X), y))
+            self.model = LogisticRegression(max_iter=500)
 
-        eval_results_formatted = {"eval/" + key: item for key, item in metrics.items()}
+            X_train = self.get_embeddings(train_data)
+            y = train_data['label']
 
-        print("Eval Results:")
-        print(str(eval_results_formatted))
-        wandb.log(eval_results_formatted)
+            self.model.fit(X_train, y)
+
+            X_val = self.get_embeddings(validation_data)
+            metrics = self.compute_metrics((self.model.predict(X_val), validation_data['label']))
+
+            eval_results_formatted = self.format_metrics(metrics, 'eval')
+
+            print("Eval Results:")
+            print(str(eval_results_formatted))
+            wandb.log(eval_results_formatted)
 
     def evaluate(self):
         X = self.get_embeddings('test')
