@@ -25,8 +25,6 @@ class DataCurator:
 
     def get_tokenized_data(self):
         data_tokens = self.data.map(self.preprocess)
-        data_tokens = data_tokens.remove_columns(['func_code_string', 'func_code_tokens',
-                                                  'func_documentation_string', 'func_documentation_tokens'])
         return data_tokens
 
 
