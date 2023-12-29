@@ -1,40 +1,37 @@
 from sklearn.metrics import log_loss
 from sklearn.model_selection import StratifiedKFold
+from sklearn.svm import SVC
+from sklearn.ensemble import RandomForestClassifier
 
 from data_curation import DataCurator
 import wandb
 import numpy as np
 import evaluate
 from random import seed
-from sklearn.linear_model import LogisticRegression
 from transformers import AutoModel
 import torch
+import optuna
 
 
 class Train:
     def __init__(self, pre_trained_model, data_dir, wandb_project, output_dir, learning_rate, batch_size,
-                 epochs, weight_decay, binary=False):
+                 epochs, weight_decay, binary=False, folds=10):
 
         seed(100)
 
         with open('secrets/wandb_api_key.txt') as f:
             wandb.login(key=f.read())
 
-            wandb.init(
-                project=wandb_project,
-                config={
-                    'model_type': 'LogisticRegression',
-                    'folds': 10,
-                    'vectorizer': 'microsoft/codebert',
-                    'embedding_reduction': 'mean'
-                }
-            )
+        self.wandb_project = wandb_project
+        self.folds = folds
 
         self.data_curator = DataCurator(pre_trained_model, data_dir, binary)
         self.data = self.data_curator.get_tokenized_data()
         self.train_test_data = self.data.train_test_split(test_size=0.2)
 
         self.model = None
+
+        self.max_size = max([len(sent) for sent in self.data['input_ids']])
 
         if binary:
             self.id2label = {0: 'irrelevant', 1: 'relevant'}
@@ -86,8 +83,6 @@ class Train:
 
         model = AutoModel.from_pretrained(self.data_curator.pre_trained_model)
 
-        max_size = max([len(sent) for sent in data['input_ids']])
-
         embeddings = []
 
         for row in data:
@@ -95,7 +90,7 @@ class Train:
 
             # Get first element of the tensor to get the 2D array of the embeddings
             embed = model(torch.tensor(row['input_ids'])[None, :])[0][0].detach().numpy()
-            pad_size = max_size - embed.shape[0]
+            pad_size = self.max_size - embed.shape[0]
             pad = np.pad(embed, [(0, pad_size), (0, 0)], mode='constant')
 
             means = [np.mean(token_vector) for token_vector in pad]
@@ -104,16 +99,35 @@ class Train:
 
         return embeddings
 
-    def train_with_cross_validation(self, number_splits):
-        folds = StratifiedKFold(n_splits=number_splits)
+
+    def train_with_cross_validation(self, trial):
+
+        classifier_name = trial.suggest_categorical('classifier', ['SVC', 'RandomForest'])
+
+        if classifier_name == 'SVC':
+            svc_c = trial.suggest_float('svc_c', 1e-10, 1e10, log=True)
+            self.model = SVC(C=svc_c, gamma='auto')
+        else:
+            rf_max_depth = trial.suggest_int('rf_max_depth', 2, 32, log=True)
+            self.model = RandomForestClassifier(max_depth=rf_max_depth, n_estimators=10)
+
+        config = dict(trial.params)
+        config['trial.number'] = trial.number
+
+        wandb.init(
+            project=self.wandb_project,
+            config=config,
+            group='Traditional_Models',
+            reinit=True
+        )
+
+        folds = StratifiedKFold(n_splits=self.folds)
 
         splits = folds.split(np.zeros(self.train_test_data['train'].num_rows), self.train_test_data['train']['label'])
 
         for train_idxs, val_idxs in splits:
             train_data = self.train_test_data['train'].select(train_idxs)
             validation_data = self.train_test_data['train'].select(val_idxs)
-
-            self.model = LogisticRegression(max_iter=500)
 
             X_train = self.get_embeddings(train_data)
             y = train_data['label']
@@ -128,6 +142,8 @@ class Train:
             print("Eval Results:")
             print(str(eval_results_formatted))
             wandb.log(eval_results_formatted)
+
+        return metrics['accuracy']
 
     def evaluate(self):
         X = self.get_embeddings(self.train_test_data['test'])
@@ -154,5 +170,7 @@ if __name__ == '__main__':
         wandb_project='JavaDoc-Relevance-Binary-Classifier',
         learning_rate=2e-5
     )
-    train.train_with_cross_validation(10)
+
+    study = optuna.create_study(direction='maximize')
+    study.optimize(train.train_with_cross_validation)
     train.evaluate()
