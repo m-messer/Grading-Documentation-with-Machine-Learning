@@ -6,10 +6,9 @@ import wandb
 import numpy as np
 import evaluate
 from random import seed
-from sklearn.linear_model import LogisticRegressionCV, LogisticRegression
+from sklearn.linear_model import LogisticRegression
 from transformers import AutoModel
 import torch
-import torch.nn as nn
 
 
 class Train:
@@ -46,29 +45,27 @@ class Train:
         self.recall = evaluate.load('recall')
         self.precision = evaluate.load('precision')
 
-        # TODO: Log config with wandb
-
     def calculate_class_weights(self):
         class_count = self.data.to_pandas().groupby('label').count()['input_ids'].to_list()
         total = sum(class_count)
         return [1 - (val / total) for val in class_count]
 
     def format_metrics(self, metrics, prefix):
-        return {prefix + "/" + key: item for key, item in metrics.values()}
+        return {prefix + "/" + key: item for key, item in metrics.items()}
 
     def compute_metrics(self, eval_pred):
         predictions, labels = eval_pred
 
-        accuracy_res = self.accuracy.compute(predictions=predictions, references=labels)
-        f1_macro_res = self.f1.compute(predictions=predictions, references=labels, average='macro')
-        f1_micro_res = self.f1.compute(predictions=predictions, references=labels, average='micro')
-        f1_weighted_res = self.f1.compute(predictions=predictions, references=labels, average='weighted')
-        recall_macro_res = self.recall.compute(predictions=predictions, references=labels, average='macro')
-        recall_micro_res = self.recall.compute(predictions=predictions, references=labels, average='micro')
-        recall_weighted_res = self.recall.compute(predictions=predictions, references=labels, average='weighted')
-        precision_macro_res = self.precision.compute(predictions=predictions, references=labels, average='macro')
-        precision_micro_res = self.precision.compute(predictions=predictions, references=labels, average='micro')
-        precision_weighted_res = self.precision.compute(predictions=predictions, references=labels, average='weighted')
+        accuracy_res = self.accuracy.compute(predictions=predictions, references=labels)['accuracy']
+        f1_macro_res = self.f1.compute(predictions=predictions, references=labels, average='macro')['f1']
+        f1_micro_res = self.f1.compute(predictions=predictions, references=labels, average='micro')['f1']
+        f1_weighted_res = self.f1.compute(predictions=predictions, references=labels, average='weighted')['f1']
+        recall_macro_res = self.recall.compute(predictions=predictions, references=labels, average='macro')['recall']
+        recall_micro_res = self.recall.compute(predictions=predictions, references=labels, average='micro')['recall']
+        recall_weighted_res = self.recall.compute(predictions=predictions, references=labels, average='weighted')['recall']
+        precision_macro_res = self.precision.compute(predictions=predictions, references=labels, average='macro')['precision']
+        precision_micro_res = self.precision.compute(predictions=predictions, references=labels, average='micro')['precision']
+        precision_weighted_res = self.precision.compute(predictions=predictions, references=labels, average='weighted')['precision']
         loss = log_loss(y_true=labels, y_pred=predictions)
 
         return {'accuracy': accuracy_res,
@@ -79,19 +76,17 @@ class Train:
                 'loss': loss
                 }
 
-    def get_embeddings(self, split: str):
+    def get_embeddings(self, data):
         """
         Uses the Pre-trained model to generate the code embeddings from the vectorised data
 
-        :param split: The split of the dataset to do
+        :param data: The data to vectorise
         :return: The context embedding vectors
         """
 
         model = AutoModel.from_pretrained(self.data_curator.pre_trained_model)
-        data = self.train_test_data[split]
 
         max_size = max([len(sent) for sent in data['input_ids']])
-        print(max_size)
 
         embeddings = []
 
@@ -135,7 +130,7 @@ class Train:
             wandb.log(eval_results_formatted)
 
     def evaluate(self):
-        X = self.get_embeddings('test')
+        X = self.get_embeddings(self.train_test_data['test'])
         y = self.train_test_data['test']['label']
 
         metrics = self.compute_metrics((self.model.predict(X), y))
