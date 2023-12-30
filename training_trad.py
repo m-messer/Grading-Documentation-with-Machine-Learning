@@ -172,7 +172,8 @@ class Train:
         X = self.get_embeddings(self.train_test_data['test'])
         y = self.train_test_data['test']['label']
 
-        metrics = self.compute_metrics((self.model.predict(X), y))
+        metrics = self.compute_metrics(self.model.predict(X),
+                                       self.model.predict_proba(X), y)
 
         eval_results_formatted = {"test/" + key: item for key, item in metrics.items()}
 
