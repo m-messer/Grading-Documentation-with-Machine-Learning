@@ -1,3 +1,4 @@
+from sklearn.linear_model import LogisticRegression
 from sklearn.metrics import log_loss
 from sklearn.model_selection import StratifiedKFold
 from sklearn.svm import SVC
@@ -14,8 +15,7 @@ import optuna
 
 
 class Train:
-    def __init__(self, pre_trained_model, data_dir, wandb_project, output_dir, learning_rate, batch_size,
-                 epochs, weight_decay, binary=False, folds=10):
+    def __init__(self, pre_trained_model, data_dir, wandb_project, binary=False, folds=10):
 
         seed(100)
 
@@ -34,8 +34,9 @@ class Train:
         self.max_size = max([len(sent) for sent in self.data['input_ids']])
 
         if binary:
-            self.id2label = {0: 'irrelevant', 1: 'relevant'}
-            self.label2id = {'irrelevant': 0, 'relevant': 1}
+            self.labels = [0, 1]
+        else:
+            self.labels = [0, 1, 2, 3]
 
         self.f1 = evaluate.load('f1')
         self.accuracy = evaluate.load('accuracy')
@@ -50,8 +51,7 @@ class Train:
     def format_metrics(self, metrics, prefix):
         return {prefix + "/" + key: item for key, item in metrics.items()}
 
-    def compute_metrics(self, eval_pred):
-        predictions, labels = eval_pred
+    def compute_metrics(self, predictions, prediction_prob, labels):
 
         accuracy_res = self.accuracy.compute(predictions=predictions, references=labels)['accuracy']
         f1_macro_res = self.f1.compute(predictions=predictions, references=labels, average='macro')['f1']
@@ -59,11 +59,15 @@ class Train:
         f1_weighted_res = self.f1.compute(predictions=predictions, references=labels, average='weighted')['f1']
         recall_macro_res = self.recall.compute(predictions=predictions, references=labels, average='macro')['recall']
         recall_micro_res = self.recall.compute(predictions=predictions, references=labels, average='micro')['recall']
-        recall_weighted_res = self.recall.compute(predictions=predictions, references=labels, average='weighted')['recall']
-        precision_macro_res = self.precision.compute(predictions=predictions, references=labels, average='macro')['precision']
-        precision_micro_res = self.precision.compute(predictions=predictions, references=labels, average='micro')['precision']
-        precision_weighted_res = self.precision.compute(predictions=predictions, references=labels, average='weighted')['precision']
-        loss = log_loss(y_true=labels, y_pred=predictions)
+        recall_weighted_res = self.recall.compute(predictions=predictions, references=labels, average='weighted')[
+            'recall']
+        precision_macro_res = self.precision.compute(predictions=predictions, references=labels, average='macro')[
+            'precision']
+        precision_micro_res = self.precision.compute(predictions=predictions, references=labels, average='micro')[
+            'precision']
+        precision_weighted_res = self.precision.compute(predictions=predictions, references=labels, average='weighted')[
+            'precision']
+        loss = log_loss(y_true=labels, y_pred=prediction_prob, labels=self.labels)
 
         return {'accuracy': accuracy_res,
                 'f1_macro': f1_macro_res, 'f1_micro': f1_micro_res, 'f1_weighted': f1_weighted_res,
@@ -99,14 +103,16 @@ class Train:
 
         return embeddings
 
-
     def train_with_cross_validation(self, trial):
 
-        classifier_name = trial.suggest_categorical('classifier', ['SVC', 'RandomForest'])
+        # classifier_name = trial.suggest_categorical('classifier',
+        #                                             ['Bernolli', 'DecisionTree', 'KNeighbours',
+        #                                              'LogisticRegression', 'RandomForest'])
 
-        if classifier_name == 'SVC':
-            svc_c = trial.suggest_float('svc_c', 1e-10, 1e10, log=True)
-            self.model = SVC(C=svc_c, gamma='auto')
+        classifier_name = 'LogisticRegression'
+
+        if classifier_name == 'LogisticRegression':
+            self.model = LogisticRegression(multi_class='multinomial', class_weight='balanced')
         else:
             rf_max_depth = trial.suggest_int('rf_max_depth', 2, 32, log=True)
             self.model = RandomForestClassifier(max_depth=rf_max_depth, n_estimators=10)
@@ -125,7 +131,11 @@ class Train:
 
         splits = folds.split(np.zeros(self.train_test_data['train'].num_rows), self.train_test_data['train']['label'])
 
+        split_count = 0
         for train_idxs, val_idxs in splits:
+            split_count += 1
+            wandb.log({'split': split_count})
+
             train_data = self.train_test_data['train'].select(train_idxs)
             validation_data = self.train_test_data['train'].select(val_idxs)
 
@@ -135,15 +145,14 @@ class Train:
             self.model.fit(X_train, y)
 
             X_val = self.get_embeddings(validation_data)
-            metrics = self.compute_metrics((self.model.predict(X_val), validation_data['label']))
+            metrics = self.compute_metrics(self.model.predict(X_val),
+                                           self.model.predict_proba(X_val), validation_data['label'])
 
             eval_results_formatted = self.format_metrics(metrics, 'eval')
 
             print("Eval Results:")
             print(str(eval_results_formatted))
             wandb.log(eval_results_formatted)
-
-        return metrics['accuracy']
 
     def evaluate(self):
         X = self.get_embeddings(self.train_test_data['test'])
@@ -165,16 +174,12 @@ class Train:
 
 
 if __name__ == '__main__':
+    # As limited on CREATE compute time: set vectorisation parameter outside of optuna?
     train = Train(
         pre_trained_model='microsoft/codebert-base',
-        output_dir='m-messer/JavaDoc_Code_Relevance_Classifier',
-        batch_size=8,
         data_dir='data/code_search_net_relevance.hf',
-        epochs=100,
-        weight_decay=0.01,
-        binary=True,
+        binary=False,
         wandb_project='JavaDoc-Relevance-Binary-Classifier',
-        learning_rate=2e-5
     )
 
     study = optuna.create_study(direction='maximize')
