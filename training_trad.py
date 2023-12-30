@@ -156,6 +156,12 @@ class Train:
         print("Test Results:")
         print(str(eval_results_formatted))
         wandb.log(eval_results_formatted)
+        return metrics['accuracy']
+
+    def objective(self, trial):
+        self.train_with_cross_validation(trial)
+        test_acc = self.evaluate()
+        return test_acc
 
 
 if __name__ == '__main__':
@@ -172,5 +178,4 @@ if __name__ == '__main__':
     )
 
     study = optuna.create_study(direction='maximize')
-    study.optimize(train.train_with_cross_validation)
-    train.evaluate()
+    study.optimize(train.objective)
