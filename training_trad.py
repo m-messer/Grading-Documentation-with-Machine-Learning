@@ -1,8 +1,11 @@
 from sklearn.linear_model import LogisticRegression
 from sklearn.metrics import log_loss
 from sklearn.model_selection import StratifiedKFold
+from sklearn.naive_bayes import BernoulliNB
+from sklearn.neighbors import KNeighborsClassifier
 from sklearn.svm import SVC
 from sklearn.ensemble import RandomForestClassifier
+from sklearn.tree import DecisionTreeClassifier
 
 from data_curation import DataCurator
 import wandb
@@ -105,13 +108,23 @@ class Train:
 
     def train_with_cross_validation(self, trial):
 
-        # classifier_name = trial.suggest_categorical('classifier',
-        #                                             ['Bernolli', 'DecisionTree', 'KNeighbours',
-        #                                              'LogisticRegression', 'RandomForest'])
+        classifier_name = trial.suggest_categorical('classifier',
+                                                    ['Bernolli', 'DecisionTree', 'KNeighbours',
+                                                     'LogisticRegression', 'RandomForest'])
 
-        classifier_name = 'LogisticRegression'
-
-        if classifier_name == 'LogisticRegression':
+        if classifier_name == 'Bernolli':
+            smoothing = trial.suggest_float('smoothing', 0, 1, log=True)
+            self.model = BernoulliNB(alpha=smoothing)
+        elif classifier_name == 'DecisionTree':
+            dt_max_depth = trial.suggest_int('dt_max_depth', 2, 20, log=True)
+            dt_min_samples_leaf = trial.suggest_int('dt_min_samples_leaf', 5, 100, log=True)
+            dt_criterion = trial.suggest_categorical('dt_criterion', ['gini', 'entropy'])
+            self.model = DecisionTreeClassifier(max_depth=dt_max_depth,
+                                                min_samples_leaf=dt_min_samples_leaf, criterion=dt_criterion)
+        elif classifier_name == 'KNeighbours':
+            nn = trial.suggest_int('n_neighbours', 1, 10, log=True)
+            self.model = KNeighborsClassifier(nn)
+        elif classifier_name == 'LogisticRegression':
             self.model = LogisticRegression(multi_class='multinomial', class_weight='balanced')
         else:
             rf_max_depth = trial.suggest_int('rf_max_depth', 2, 32, log=True)
@@ -124,6 +137,7 @@ class Train:
             project=self.wandb_project,
             config=config,
             group='Traditional_Models',
+            tags=['CodeBERT'],
             reinit=True
         )
 
