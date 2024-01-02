@@ -1,5 +1,5 @@
 from datasets import Dataset
-from sklearn.feature_extraction.text import CountVectorizer
+from sklearn.feature_extraction.text import CountVectorizer, TfidfVectorizer
 from transformers import AutoTokenizer, DataCollatorWithPadding, AutoModel
 import torch
 import numpy as np
@@ -34,10 +34,10 @@ class TokenizerVectorizer:
                 self.data_collator = DataCollatorWithPadding(tokenizer=self.tokenizer)
         elif vectorization_method == 'BoW':
             self.vectorizer = CountVectorizer()
-            print(self.data)
-            self.vectorizer.fit_transform(self.data['text']).toarray()
+            self.vectorizer.fit_transform(self.data['text'])
         elif vectorization_method == 'TfIdf':
-            pass
+            self.vectorizer = TfidfVectorizer()
+            self.vectorizer.fit_transform(self.data['text'])
 
         self.max_size = None
 
@@ -61,7 +61,7 @@ class TokenizerVectorizer:
     def get_embeddings(self, data):
         if self.vectorizer_method == 'pre-trained':
             return self.__get_embeddings_pre_trained(data)
-        elif self.vectorizer_method == 'BoW':
+        else:
             return self.vectorizer.transform(data['text']).toarray()
 
     def __get_embeddings_pre_trained(self, data):
@@ -90,7 +90,7 @@ class TokenizerVectorizer:
 
 
 if __name__ == "__main__":
-    data_curator = TokenizerVectorizer(vectorization_method='BoW', pre_trained_model='microsoft/codebert-base',
+    data_curator = TokenizerVectorizer(vectorization_method='TfIdf', pre_trained_model='microsoft/codebert-base',
                                        data_dir='data/code_search_net_relevance.hf', binary=True)
     # tokenized_data = data_curator.get_pre_trained_tokenized_data()
     embeddings = data_curator.get_embeddings(data_curator.data)
