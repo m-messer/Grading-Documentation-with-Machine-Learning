@@ -1,4 +1,4 @@
-from data_curation import DataCurator
+from tokeniser_vectorizer import TokenizerVectorizer
 from transformers import Trainer, TrainingArguments, AutoModelForSequenceClassification, set_seed
 from torch import nn, tensor, cuda
 import wandb
@@ -20,7 +20,7 @@ class Train:
                 project=wandb_project
             )
 
-        self.data_curator = DataCurator(pre_trained_model, data_dir, binary)
+        self.data_curator = TokenizerVectorizer(pre_trained_model, data_dir, binary)
         self.data = self.data_curator.get_tokenized_data()
         self.train_test_data = self.data.train_test_split(test_size=0.2)
         self.weights = self.calculate_class_weights()

@@ -5,17 +5,14 @@ from sklearn.metrics import log_loss
 from sklearn.model_selection import StratifiedKFold
 from sklearn.naive_bayes import BernoulliNB
 from sklearn.neighbors import KNeighborsClassifier
-from sklearn.svm import SVC
 from sklearn.ensemble import RandomForestClassifier
 from sklearn.tree import DecisionTreeClassifier
 
-from data_curation import DataCurator
+from tokeniser_vectorizer import TokenizerVectorizer
 import wandb
 import numpy as np
 import evaluate
 from random import seed
-from transformers import AutoModel
-import torch
 import optuna
 
 
@@ -35,13 +32,12 @@ class Train:
         self.model_name = model_name
         self.vectorisation_method = vectorisation_method
 
-        self.data_curator = DataCurator(pre_trained_model, data_dir, binary)
+        self.data_curator = TokenizerVectorizer(vectorization_method=vectorisation_method,
+                                                data_dir=data_dir, binary=binary, pre_trained_model=pre_trained_model)
         self.data = self.data_curator.get_tokenized_data()
         self.train_test_data = self.data.train_test_split(test_size=0.2)
 
         self.model = None
-
-        self.max_size = max([len(sent) for sent in self.data['input_ids']])
 
         if binary:
             self.labels = [0, 1]
@@ -87,32 +83,6 @@ class Train:
                 'loss': loss
                 }
 
-    def get_embeddings(self, data):
-        """
-        Uses the Pre-trained model to generate the code embeddings from the vectorised data
-
-        :param data: The data to vectorise
-        :return: The context embedding vectors
-        """
-
-        model = AutoModel.from_pretrained(self.data_curator.pre_trained_model)
-
-        embeddings = []
-
-        for row in data:
-            # TODO: switch the processing embeddings to a better process (max pooling is probably the best)
-
-            # Get first element of the tensor to get the 2D array of the embeddings
-            embed = model(torch.tensor(row['input_ids'])[None, :])[0][0].detach().numpy()
-            pad_size = self.max_size - embed.shape[0]
-            pad = np.pad(embed, [(0, pad_size), (0, 0)], mode='constant')
-
-            means = [np.mean(token_vector) for token_vector in pad]
-
-            embeddings.append(means)
-
-        return embeddings
-
     def train_with_cross_validation(self, trial):
 
         classifier_name = trial.suggest_categorical('classifier',
@@ -140,11 +110,16 @@ class Train:
         config = dict(trial.params)
         config['trial.number'] = trial.number
 
+        if self.vectorisation_method == 'pre-trained':
+            tags = [self.vectorisation_method + ":" + self.data_curator.pre_trained_model, self.model_name]
+        else:
+            tags = [self.vectorisation_method, self.model_name]
+
         wandb.init(
             project=self.wandb_project,
             config=config,
-            group='Traditional_Models',
-            tags=[self.vectorisation_method, self.model_name],
+            group='DEV',
+            tags=tags,
             reinit=True
         )
 
@@ -160,12 +135,12 @@ class Train:
             train_data = self.train_test_data['train'].select(train_idxs)
             validation_data = self.train_test_data['train'].select(val_idxs)
 
-            X_train = self.get_embeddings(train_data)
+            X_train = self.data_curator.get_embeddings(train_data)
             y = train_data['label']
 
             self.model.fit(X_train, y)
 
-            X_val = self.get_embeddings(validation_data)
+            X_val = self.data_curator.get_embeddings(validation_data)
             metrics = self.compute_metrics(self.model.predict(X_val),
                                            self.model.predict_proba(X_val), validation_data['label'])
 
@@ -176,7 +151,7 @@ class Train:
             wandb.log(eval_results_formatted)
 
     def evaluate(self):
-        X = self.get_embeddings(self.train_test_data['test'])
+        X = self.data_curator.get_embeddings(self.train_test_data['test'])
         y = self.train_test_data['test']['label']
 
         metrics = self.compute_metrics(self.model.predict(X),
@@ -213,7 +188,7 @@ def main():
         binary=False,
         wandb_project='JavaDoc-Relevance-Binary-Classifier',
         model_name=args[1],
-        vectorisation_method='CodeBERT'
+        vectorisation_method='pre-trained'
     )
 
     study = optuna.create_study(direction='maximize')
