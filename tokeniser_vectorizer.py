@@ -1,4 +1,5 @@
 from datasets import Dataset
+from sklearn.feature_extraction.text import CountVectorizer
 from transformers import AutoTokenizer, DataCollatorWithPadding, AutoModel
 import torch
 import numpy as np
@@ -18,6 +19,8 @@ class TokenizerVectorizer:
             message = "Please supply a vectorisation method from:" + ' '.join(self.VECTORISATION_METHODS)
             raise MissingParameterError(message)
 
+        self.data = Dataset.load_from_disk(data_dir)
+
         self.vectorizer_method = vectorization_method
 
         if vectorization_method == 'pre-trained':
@@ -27,14 +30,14 @@ class TokenizerVectorizer:
             else:
                 self.pre_trained_model = pre_trained_model
                 self.tokenizer = AutoTokenizer.from_pretrained(pre_trained_model)
-                self.vectorisor = AutoModel.from_pretrained(self.pre_trained_model)
+                self.vectorizer = AutoModel.from_pretrained(self.pre_trained_model)
+                self.data_collator = DataCollatorWithPadding(tokenizer=self.tokenizer)
         elif vectorization_method == 'BoW':
-            pass
+            self.vectorizer = CountVectorizer()
+            print(self.data)
+            self.vectorizer.fit_transform(self.data['text']).toarray()
         elif vectorization_method == 'TfIdf':
             pass
-
-        self.data = Dataset.load_from_disk(data_dir)
-        self.data_collator = DataCollatorWithPadding(tokenizer=self.tokenizer)
 
         self.max_size = None
 
@@ -50,7 +53,7 @@ class TokenizerVectorizer:
     def __preprocess(self, row):
         return self.tokenizer(row['text'], truncation=True, padding=True)
 
-    def get_tokenized_data(self):
+    def get_pre_trained_tokenized_data(self):
         data_tokens = self.data.map(self.__preprocess)
         self.max_size = max([len(sent) for sent in data_tokens['input_ids']])
         return data_tokens
@@ -58,6 +61,8 @@ class TokenizerVectorizer:
     def get_embeddings(self, data):
         if self.vectorizer_method == 'pre-trained':
             return self.__get_embeddings_pre_trained(data)
+        elif self.vectorizer_method == 'BoW':
+            return self.vectorizer.transform(data['text']).toarray()
 
     def __get_embeddings_pre_trained(self, data):
         """
@@ -73,7 +78,7 @@ class TokenizerVectorizer:
             # TODO: switch the processing embeddings to a better process (max pooling is probably the best)
 
             # Get first element of the tensor to get the 2D array of the embeddings
-            embed = self.vectorisor(torch.tensor(row['input_ids'])[None, :])[0][0].detach().numpy()
+            embed = self.vectorizer(torch.tensor(row['input_ids'])[None, :])[0][0].detach().numpy()
             pad_size = self.max_size - embed.shape[0]
             pad = np.pad(embed, [(0, pad_size), (0, 0)], mode='constant')
 
@@ -85,9 +90,10 @@ class TokenizerVectorizer:
 
 
 if __name__ == "__main__":
-    data_curator = TokenizerVectorizer(vectorization_method='pre-trained', pre_trained_model='microsoft/codebert-base',
+    data_curator = TokenizerVectorizer(vectorization_method='BoW', pre_trained_model='microsoft/codebert-base',
                                        data_dir='data/code_search_net_relevance.hf', binary=True)
-    tokenized_data = data_curator.get_tokenized_data()
-    embeddings = data_curator.get_embeddings(tokenized_data)
+    # tokenized_data = data_curator.get_pre_trained_tokenized_data()
+    embeddings = data_curator.get_embeddings(data_curator.data)
     print(embeddings)
-    print(embeddings[0])
+    print(list(embeddings[0]))
+    print(np.nonzero(embeddings[0]))

@@ -1,3 +1,4 @@
+import argparse
 import sys
 
 import matplotlib.pyplot as plt
@@ -34,10 +35,15 @@ class Train:
         self.model_name = model_name
         self.vectorisation_method = vectorisation_method
 
-        self.data_curator = TokenizerVectorizer(vectorization_method=vectorisation_method,
-                                                data_dir=data_dir, binary=binary, pre_trained_model=pre_trained_model)
-        self.data = self.data_curator.get_tokenized_data()
-        self.train_test_data = self.data.train_test_split(test_size=0.2)
+        self.tokenizer_vectorizer = TokenizerVectorizer(vectorization_method=vectorisation_method,
+                                                        data_dir=data_dir, binary=binary,
+                                                        pre_trained_model=pre_trained_model)
+
+        if vectorisation_method == 'pre-trained':
+            self.data = self.tokenizer_vectorizer.get_pre_trained_tokenized_data()
+            self.train_test_data = self.data.train_test_split(test_size=0.2)
+        else:
+            self.train_test_data = self.tokenizer_vectorizer.data.train_test_split(test_size=0.2)
 
         Path('plots').mkdir(exist_ok=True)
 
@@ -120,14 +126,14 @@ class Train:
         config['trial.number'] = trial.number
 
         if self.vectorisation_method == 'pre-trained':
-            tags = [self.vectorisation_method + ":" + self.data_curator.pre_trained_model, self.model_name]
+            tags = [self.vectorisation_method + ":" + self.tokenizer_vectorizer.pre_trained_model, self.model_name]
         else:
             tags = [self.vectorisation_method, self.model_name]
 
         wandb.init(
             project=self.wandb_project,
             config=config,
-            group='DEV',
+            group='Traditional_Models',
             tags=tags,
             reinit=True
         )
@@ -144,12 +150,12 @@ class Train:
             train_data = self.train_test_data['train'].select(train_idxs)
             validation_data = self.train_test_data['train'].select(val_idxs)
 
-            X_train = self.data_curator.get_embeddings(train_data)
+            X_train = self.tokenizer_vectorizer.get_embeddings(train_data)
             y = train_data['label']
 
             self.model.fit(X_train, y)
 
-            X_val = self.data_curator.get_embeddings(validation_data)
+            X_val = self.tokenizer_vectorizer.get_embeddings(validation_data)
             metrics = self.compute_metrics(self.model.predict(X_val),
                                            self.model.predict_proba(X_val), validation_data['label'])
 
@@ -160,7 +166,7 @@ class Train:
             wandb.log(eval_results_formatted)
 
     def evaluate(self):
-        X = self.data_curator.get_embeddings(self.train_test_data['test'])
+        X = self.tokenizer_vectorizer.get_embeddings(self.train_test_data['test'])
         y = self.train_test_data['test']['label']
 
         metrics = self.compute_metrics(self.model.predict(X),
@@ -180,15 +186,20 @@ class Train:
 
 
 def main():
-    args = sys.argv[1:]
+    parser = argparse.ArgumentParser(description='Train Traditional Models')
+    parser.add_argument('-model', dest='model', required=True,
+                        help='Use -model to select a model from: ' + ' '.join(Train.ACCEPTED_MODELS))
+    parser.add_argument('-vectorizer', dest='vectorizer', required=True,
+                        help='Use -vectorizer to select a vectorizer from: ' +
+                             ' '.join(TokenizerVectorizer.VECTORISATION_METHODS))
+    args = parser.parse_args()
 
-    if len(args) != 2 or args[0] != '-model':
-        print("Please supply a model name using -model")
+    if args.model not in Train.ACCEPTED_MODELS:
+        print('Select a model from: ' + ' '.join(Train.ACCEPTED_MODELS))
         return
 
-    if args[1] not in Train.ACCEPTED_MODELS:
-        print('Please select a model from: ')
-        print(' '.join(Train.ACCEPTED_MODELS))
+    if args.vectorizer not in TokenizerVectorizer.VECTORISATION_METHODS:
+        print('Select a vectorizer from: ' + ' '.join(TokenizerVectorizer.VECTORISATION_METHODS))
         return
 
     train = Train(
@@ -196,8 +207,8 @@ def main():
         data_dir='data/code_search_net_relevance.hf',
         binary=False,
         wandb_project='JavaDoc-Relevance-Binary-Classifier',
-        model_name=args[1],
-        vectorisation_method='pre-trained'
+        model_name=args.model,
+        vectorisation_method=args.vectorizer
     )
 
     study = optuna.create_study(direction='maximize')
