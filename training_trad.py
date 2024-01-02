@@ -1,5 +1,6 @@
 import sys
 
+import matplotlib.pyplot as plt
 from sklearn.linear_model import LogisticRegression
 from sklearn.metrics import log_loss
 from sklearn.model_selection import StratifiedKFold
@@ -14,7 +15,8 @@ import numpy as np
 import evaluate
 from random import seed
 import optuna
-
+import seaborn as sns
+from pathlib import Path
 
 class Train:
     ACCEPTED_MODELS = ['LogisticRegression', 'Bernolli', 'KNeighbours', 'DecisionTree', 'RandomForest']
@@ -36,6 +38,13 @@ class Train:
                                                 data_dir=data_dir, binary=binary, pre_trained_model=pre_trained_model)
         self.data = self.data_curator.get_tokenized_data()
         self.train_test_data = self.data.train_test_split(test_size=0.2)
+
+        Path('plots').mkdir(exist_ok=True)
+
+        sns.countplot(self.train_test_data['train'].to_pandas(), x='label')
+        plt.savefig('plots/train_data.pdf')
+        sns.countplot(self.train_test_data['test'].to_pandas(), x='label')
+        plt.savefig('plots/test_data.pdf')
 
         self.model = None
 
@@ -102,7 +111,7 @@ class Train:
             nn = trial.suggest_int('n_neighbours', 1, 10, log=True)
             self.model = KNeighborsClassifier(nn)
         elif classifier_name == 'LogisticRegression':
-            self.model = LogisticRegression(multi_class='multinomial', class_weight='balanced')
+            self.model = LogisticRegression(multi_class='multinomial')
         else:
             rf_max_depth = trial.suggest_int('rf_max_depth', 2, 32, log=True)
             self.model = RandomForestClassifier(max_depth=rf_max_depth, n_estimators=10)
