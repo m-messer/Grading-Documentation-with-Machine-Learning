@@ -98,24 +98,19 @@ class Train:
                 }
 
     def train_with_cross_validation(self, trial):
-
-        classifier_name = trial.suggest_categorical('classifier',
-                                                    ['Bernolli', 'DecisionTree', 'KNeighbours',
-                                                     'LogisticRegression', 'RandomForest'])
-
-        if classifier_name == 'Bernolli':
+        if self.model_name == 'Bernolli':
             smoothing = trial.suggest_float('smoothing', 0, 1)
             self.model = BernoulliNB(alpha=smoothing)
-        elif classifier_name == 'DecisionTree':
+        elif self.model_name == 'DecisionTree':
             dt_max_depth = trial.suggest_int('dt_max_depth', 2, 20, log=True)
             dt_min_samples_leaf = trial.suggest_int('dt_min_samples_leaf', 5, 100, log=True)
             dt_criterion = trial.suggest_categorical('dt_criterion', ['gini', 'entropy'])
             self.model = DecisionTreeClassifier(max_depth=dt_max_depth,
                                                 min_samples_leaf=dt_min_samples_leaf, criterion=dt_criterion)
-        elif classifier_name == 'KNeighbours':
+        elif self.model_name == 'KNeighbours':
             nn = trial.suggest_int('n_neighbours', 1, 10, log=True)
             self.model = KNeighborsClassifier(nn)
-        elif classifier_name == 'LogisticRegression':
+        elif self.model_name == 'LogisticRegression':
             self.model = LogisticRegression(multi_class='multinomial')
         else:
             rf_max_depth = trial.suggest_int('rf_max_depth', 2, 32, log=True)
@@ -125,14 +120,14 @@ class Train:
         config['trial.number'] = trial.number
 
         if self.vectorisation_method == 'pre-trained':
-            tags = [self.vectorisation_method + ":" + self.tokenizer_vectorizer.pre_trained_model, self.model_name]
+            tags = [self.vectorisation_method + ":" + self.tokenizer_vectorizer.pre_trained_model]
         else:
-            tags = [self.vectorisation_method, self.model_name]
+            tags = [self.vectorisation_method]
 
         wandb.init(
             project=self.wandb_project,
             config=config,
-            group='Traditional_Models',
+            group=self.model_name,
             tags=tags,
             reinit=True
         )
@@ -191,6 +186,7 @@ def main():
     parser.add_argument('-vectorizer', dest='vectorizer', required=True,
                         help='Use -vectorizer to select a vectorizer from: ' +
                              ' '.join(TokenizerVectorizer.VECTORISATION_METHODS))
+    parser.add_argument('-n_trails', dest='n_trails', default=10, type=int)
     args = parser.parse_args()
 
     if args.model not in Train.ACCEPTED_MODELS:
@@ -211,7 +207,7 @@ def main():
     )
 
     study = optuna.create_study(direction='maximize')
-    study.optimize(train.objective)
+    study.optimize(train.objective, n_trials=args.n_trails)
 
 
 if __name__ == '__main__':
