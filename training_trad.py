@@ -20,9 +20,9 @@ import optuna
 
 
 class Train:
-    ACCEPTED_MODELS = ['LogisticRegression', 'Bernolli', 'KNeighbours', 'DecisionTree', ' RandomForest']
+    ACCEPTED_MODELS = ['LogisticRegression', 'Bernolli', 'KNeighbours', 'DecisionTree', 'RandomForest']
 
-    def __init__(self, pre_trained_model, data_dir, wandb_project, model_name, vectorisation_method,
+    def __init__(self, data_dir, wandb_project, model_name, vectorisation_method, pre_trained_model=None,
                  binary=False, folds=10):
 
         seed(100)
