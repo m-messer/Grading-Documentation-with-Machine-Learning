@@ -1,3 +1,5 @@
+import sys
+
 from sklearn.linear_model import LogisticRegression
 from sklearn.metrics import log_loss
 from sklearn.model_selection import StratifiedKFold
@@ -18,7 +20,10 @@ import optuna
 
 
 class Train:
-    def __init__(self, pre_trained_model, data_dir, wandb_project, binary=False, folds=10):
+    ACCEPTED_MODELS = ['LogisticRegression', 'Bernolli', 'KNeighbours', 'DecisionTree', ' RandomForest']
+
+    def __init__(self, pre_trained_model, data_dir, wandb_project, model_name, vectorisation_method,
+                 binary=False, folds=10):
 
         seed(100)
 
@@ -27,6 +32,8 @@ class Train:
 
         self.wandb_project = wandb_project
         self.folds = folds
+        self.model_name = model_name
+        self.vectorisation_method = vectorisation_method
 
         self.data_curator = DataCurator(pre_trained_model, data_dir, binary)
         self.data = self.data_curator.get_tokenized_data()
@@ -113,7 +120,7 @@ class Train:
                                                      'LogisticRegression', 'RandomForest'])
 
         if classifier_name == 'Bernolli':
-            smoothing = trial.suggest_float('smoothing', 0, 1, log=True)
+            smoothing = trial.suggest_float('smoothing', 0, 1)
             self.model = BernoulliNB(alpha=smoothing)
         elif classifier_name == 'DecisionTree':
             dt_max_depth = trial.suggest_int('dt_max_depth', 2, 20, log=True)
@@ -137,7 +144,7 @@ class Train:
             project=self.wandb_project,
             config=config,
             group='Traditional_Models',
-            tags=['CodeBERT'],
+            tags=[self.vectorisation_method, self.model_name],
             reinit=True
         )
 
@@ -188,14 +195,30 @@ class Train:
         return test_acc
 
 
-if __name__ == '__main__':
-    # As limited on CREATE compute time: set vectorisation parameter outside of optuna?
+def main():
+    args = sys.argv[1:]
+
+    if len(args) != 2 or args[0] != '-model':
+        print("Please supply a model name using -model")
+        return
+
+    if args[1] not in Train.ACCEPTED_MODELS:
+        print('Please select a model from: ')
+        print(' '.join(Train.ACCEPTED_MODELS))
+        return
+
     train = Train(
         pre_trained_model='microsoft/codebert-base',
         data_dir='data/code_search_net_relevance.hf',
         binary=False,
         wandb_project='JavaDoc-Relevance-Binary-Classifier',
+        model_name=args[1],
+        vectorisation_method='CodeBERT'
     )
 
     study = optuna.create_study(direction='maximize')
     study.optimize(train.objective)
+
+
+if __name__ == '__main__':
+    main()
