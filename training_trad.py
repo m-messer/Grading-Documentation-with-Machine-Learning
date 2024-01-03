@@ -186,7 +186,8 @@ def main():
     parser.add_argument('-vectorizer', dest='vectorizer', required=True,
                         help='Use -vectorizer to select a vectorizer from: ' +
                              ' '.join(TokenizerVectorizer.VECTORISATION_METHODS))
-    parser.add_argument('-n_trails', dest='n_trails', default=10, type=int)
+    parser.add_argument('-n_trails', dest='n_trails', default=10, type=int, help='The number of Optuna trials')
+    parser.add_argument('-pre-trained', dest='pre_trained', default=None, help='A HuggingFace model for vectorisation')
     args = parser.parse_args()
 
     if args.model not in Train.ACCEPTED_MODELS:
@@ -197,8 +198,12 @@ def main():
         print('Select a vectorizer from: ' + ' '.join(TokenizerVectorizer.VECTORISATION_METHODS))
         return
 
+    if args.vectorizer == 'pre-trained' and args.pre_trained is None:
+        print("Provided a pre-trained HuggingFace model for vectorisation")
+        return
+
     train = Train(
-        pre_trained_model='microsoft/codebert-base',
+        pre_trained_model=args.pre_trained,
         data_dir='data/code_search_net_relevance.hf',
         binary=False,
         wandb_project='JavaDoc-Relevance-Binary-Classifier',
