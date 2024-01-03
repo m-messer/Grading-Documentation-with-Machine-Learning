@@ -32,7 +32,6 @@ class TokenizerVectorizer:
                 self.tokenizer = AutoTokenizer.from_pretrained(pre_trained_model)
 
                 if self.tokenizer.pad_token is None:
-                    print("No PAD")
                     self.tokenizer.add_special_tokens({'pad_token': '[PAD]'})
 
                 self.vectorizer = AutoModel.from_pretrained(self.pre_trained_model)
