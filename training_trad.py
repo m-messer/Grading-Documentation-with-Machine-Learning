@@ -63,11 +63,6 @@ class Train:
         self.recall = evaluate.load('recall')
         self.precision = evaluate.load('precision')
 
-    def calculate_class_weights(self):
-        class_count = self.data.to_pandas().groupby('label').count()['input_ids'].to_list()
-        total = sum(class_count)
-        return [1 - (val / total) for val in class_count]
-
     def format_metrics(self, metrics, prefix):
         return {prefix + "/" + key: item for key, item in metrics.items()}
 

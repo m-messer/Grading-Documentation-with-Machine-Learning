@@ -30,6 +30,11 @@ class TokenizerVectorizer:
             else:
                 self.pre_trained_model = pre_trained_model
                 self.tokenizer = AutoTokenizer.from_pretrained(pre_trained_model)
+
+                if self.tokenizer.pad_token is None:
+                    print("No PAD")
+                    self.tokenizer.add_special_tokens({'pad_token': '[PAD]'})
+
                 self.vectorizer = AutoModel.from_pretrained(self.pre_trained_model)
                 self.data_collator = DataCollatorWithPadding(tokenizer=self.tokenizer)
         elif vectorization_method == 'BoW':
