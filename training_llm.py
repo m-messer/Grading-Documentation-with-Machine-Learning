@@ -38,6 +38,7 @@ class Train:
     def __init__(self, data_dir, wandb_project, pre_trained_model,
                  binary=False, folds=10):
 
+        self.training_arguments = None
         set_seed(100)
 
         with open('secrets/wandb_api_key.txt') as f:
@@ -120,7 +121,6 @@ class Train:
         wandb.init(
             project=self.wandb_project,
             group="Fine-Tuned LLM:" + self.pre_trained_model,
-            tags=['DEV'],
             reinit=True
         )
 
@@ -194,14 +194,14 @@ def main():
                         help='A HuggingFace model for vectorisation and fine-tuning')
     args = parser.parse_args()
 
-    if args.pre_trained == None:
+    if args.pre_trained is None:
         print("Please supply a hugging face model to fine tune, using -pre-trained")
         return
 
     train = Train(
         pre_trained_model=args.pre_trained,
         data_dir='data/code_search_net_relevance.hf',
-        binary=True,
+        binary=False,
         wandb_project='JavaDoc-Relevance-Binary-Classifier',
     )
 
