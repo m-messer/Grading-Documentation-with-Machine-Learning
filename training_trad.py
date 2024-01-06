@@ -18,11 +18,12 @@ import optuna
 import seaborn as sns
 from pathlib import Path
 
+
 class Train:
     ACCEPTED_MODELS = ['LogisticRegression', 'Bernolli', 'KNeighbours', 'DecisionTree', 'RandomForest']
 
     def __init__(self, data_dir, wandb_project, model_name, vectorisation_method, pre_trained_model=None,
-                 binary=False, folds=10):
+                 binary=False, folds=10, pre_process=False):
 
         seed(100)
 
@@ -33,10 +34,11 @@ class Train:
         self.folds = folds
         self.model_name = model_name
         self.vectorisation_method = vectorisation_method
+        self.pre_process = pre_process
 
         self.tokenizer_vectorizer = TokenizerVectorizer(vectorization_method=vectorisation_method,
                                                         data_dir=data_dir, binary=binary,
-                                                        pre_trained_model=pre_trained_model)
+                                                        pre_trained_model=pre_trained_model, pre_process=pre_process)
 
         if vectorisation_method == 'pre-trained':
             self.data = self.tokenizer_vectorizer.get_pre_trained_tokenized_data()
@@ -119,6 +121,9 @@ class Train:
         else:
             tags = [self.vectorisation_method]
 
+        if self.pre_process:
+            tags.append('preprocessed')
+
         wandb.init(
             project=self.wandb_project,
             config=config,
@@ -183,6 +188,8 @@ def main():
                              ' '.join(TokenizerVectorizer.VECTORISATION_METHODS))
     parser.add_argument('-n_trails', dest='n_trails', default=10, type=int, help='The number of Optuna trials')
     parser.add_argument('-pre-trained', dest='pre_trained', default=None, help='A HuggingFace model for vectorisation')
+    parser.add_argument('-pre-process', dest='pre_process', default=False, help='Run preprocessing steps',
+                        action='store_true')
     args = parser.parse_args()
 
     if args.model not in Train.ACCEPTED_MODELS:
@@ -203,7 +210,8 @@ def main():
         binary=False,
         wandb_project='JavaDoc-Relevance-Binary-Classifier',
         model_name=args.model,
-        vectorisation_method=args.vectorizer
+        vectorisation_method=args.vectorizer,
+        pre_process=args.pre_process
     )
 
     study = optuna.create_study(direction='maximize')

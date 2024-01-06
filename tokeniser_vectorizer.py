@@ -4,6 +4,8 @@ from transformers import AutoTokenizer, DataCollatorWithPadding, AutoModel
 import torch
 import numpy as np
 
+from preprocessor import over_sample
+
 
 class MissingParameterError(Exception):
     def __init__(self, message):
@@ -14,12 +16,15 @@ class TokenizerVectorizer:
 
     VECTORISATION_METHODS = ['pre-trained', 'BoW', 'TfIdf']
 
-    def __init__(self, vectorization_method, data_dir, binary=False, pre_trained_model=None):
+    def __init__(self, vectorization_method, data_dir, binary=False, pre_trained_model=None, pre_process=False):
         if vectorization_method is None:
             message = "Please supply a vectorisation method from:" + ' '.join(self.VECTORISATION_METHODS)
             raise MissingParameterError(message)
 
         self.data = Dataset.load_from_disk(data_dir)
+
+        if pre_process:
+            self.data = over_sample(self.data)
 
         self.vectorizer_method = vectorization_method
 
