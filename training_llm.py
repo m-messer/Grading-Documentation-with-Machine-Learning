@@ -35,7 +35,7 @@ class CustomTrainer(Trainer):
         return (loss, outputs) if return_outputs else loss
 
 class Train:
-    def __init__(self, data_dir, wandb_project, pre_trained_model,
+    def __init__(self, data_dir, wandb_project, pre_trained_model, pre_process=False,
                  binary=False, folds=10):
 
         self.training_arguments = None
@@ -47,10 +47,14 @@ class Train:
         self.wandb_project = wandb_project
         self.folds = folds
         self.pre_trained_model = pre_trained_model
+        self.pre_process = pre_process
 
         self.data_curator = TokenizerVectorizer(vectorization_method='pre-trained', data_dir=data_dir,
-                                                binary=binary, pre_trained_model=pre_trained_model)
+                                                binary=binary, pre_trained_model=pre_trained_model,
+                                                pre_process=pre_process)
+
         self.data = self.data_curator.get_pre_trained_tokenized_data()
+
         self.train_test_data = self.data.train_test_split(test_size=0.2)
         self.weights = self.calculate_class_weights()
 
@@ -120,9 +124,15 @@ class Train:
         config = dict(trial.params)
         config['trial.number'] = trial.number
 
+        if self.pre_process:
+            tags= ['preprocessed']
+        else:
+            tags = None
+
         wandb.init(
             project=self.wandb_project,
             group="Fine-Tuned LLM:" + self.pre_trained_model,
+            tags=tags,
             reinit=True
         )
 
@@ -194,6 +204,8 @@ def main():
     parser.add_argument('-n_trails', dest='n_trails', default=10, type=int, help='The number of Optuna trials')
     parser.add_argument('-pre-trained', dest='pre_trained',
                         help='A HuggingFace model for vectorisation and fine-tuning')
+    parser.add_argument('-pre-process', dest='pre_process', default=False, help='Run preprocessing steps',
+                        action='store_true')
     args = parser.parse_args()
 
     if args.pre_trained is None:
@@ -205,6 +217,7 @@ def main():
         data_dir='data/code_search_net_relevance.hf',
         binary=False,
         wandb_project='JavaDoc-Relevance-Binary-Classifier',
+        pre_process=args.pre_process
     )
 
     study = optuna.create_study(direction='maximize')
