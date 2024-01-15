@@ -18,5 +18,5 @@ if __name__ == '__main__':
     new_data = over_sample(data)
     print(new_data)
 
-    sns.countplot(new_data.to_pandas(), x='label')
+    sns.countplot(new_data.to_pandas(), x='label', color=(187/255, 187/255, 187/255))
     plt.savefig('plots/over_sample_test.pdf')

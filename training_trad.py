@@ -48,9 +48,9 @@ class Train:
 
         Path('plots').mkdir(exist_ok=True)
 
-        sns.countplot(self.train_test_data['train'].to_pandas(), x='label')
+        sns.countplot(self.train_test_data['train'].to_pandas(), x='label', color=(187/255, 187/255, 187/255))
         plt.savefig('plots/train_data.pdf')
-        sns.countplot(self.train_test_data['test'].to_pandas(), x='label')
+        sns.countplot(self.train_test_data['test'].to_pandas(), x='label', color=(187/255, 187/255, 187/255))
         plt.savefig('plots/test_data.pdf')
 
         self.model = None
