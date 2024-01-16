@@ -49,11 +49,11 @@ class Train:
         self.pre_trained_model = pre_trained_model
         self.pre_process = pre_process
 
-        self.data_curator = TokenizerVectorizer(vectorization_method='pre-trained', data_dir=data_dir,
-                                                binary=binary, pre_trained_model=pre_trained_model,
-                                                pre_process=pre_process)
+        self.tokenizer_vectorizer = TokenizerVectorizer(vectorization_method='pre-trained', data_dir=data_dir,
+                                                        binary=binary, pre_trained_model=pre_trained_model,
+                                                        pre_process=pre_process)
 
-        self.data = self.data_curator.get_pre_trained_tokenized_data()
+        self.data = self.tokenizer_vectorizer.get_pre_trained_tokenized_data()
 
         self.train_test_data = self.data.train_test_split(test_size=0.2)
         self.weights = self.calculate_class_weights()
@@ -168,31 +168,25 @@ class Train:
                 args=self.training_arguments,
                 train_dataset=train_data,
                 eval_dataset=validation_data,
-                tokenizer=self.data_curator.tokenizer,
-                data_collator=self.data_curator.data_collator,
+                tokenizer=self.tokenizer_vectorizer.tokenizer,
+                data_collator=self.tokenizer_vectorizer.data_collator,
                 compute_metrics=self.compute_metrics,
             )
 
             trainer.train()
 
     def evaluate(self):
-        self.model.eval()
+        X = self.tokenizer_vectorizer.get_embeddings(self.train_test_data['test'])
+        y = self.train_test_data['test']['label']
 
-        evaluator = evaluate.evaluator('text-classification')
+        metrics = self.compute_metrics((self.model.predict_proba(X), y))
 
-        eval_results = evaluator.compute(
-            model_or_pipeline=self.model,
-            data=self.train_test_data['test'],
-            label_mapping=self.label2id,
-            tokenizer=self.data_curator.tokenizer,
-        )
-
-        eval_results_formatted = {"test/" + key: item for key, item in eval_results.items()}
+        eval_results_formatted = {"test/" + key: item for key, item in metrics.items()}
 
         print("Test Results:")
         print(str(eval_results_formatted))
         wandb.log(eval_results_formatted)
-        return eval_results_formatted['test/accuracy']
+        return metrics['accuracy']
 
     def objective(self, trial):
         self.train_with_cross_validation(trial)
