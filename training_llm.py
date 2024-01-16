@@ -195,9 +195,10 @@ class Train:
         return eval_results_formatted['test/accuracy']
 
     def objective(self, trial):
-        self.train(trial)
+        self.train_with_cross_validation(trial)
         test_acc = self.evaluate()
         return test_acc
+
 
 def main():
     parser = argparse.ArgumentParser(description='Fine-Tune LLM Models')
