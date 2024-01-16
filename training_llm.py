@@ -125,7 +125,7 @@ class Train:
         config['trial.number'] = trial.number
 
         if self.pre_process:
-            tags= ['preprocessed']
+            tags = ['preprocessed', 'no custom weights']
         else:
             tags = None
 
@@ -162,8 +162,8 @@ class Train:
             train_data = self.train_test_data['train'].select(train_idxs)
             validation_data = self.train_test_data['train'].select(val_idxs)
 
-            trainer = CustomTrainer(
-                weights=self.calculate_class_weights(),
+            trainer = Trainer(
+                # weights=self.calculate_class_weights(),
                 model=self.model,
                 args=self.training_arguments,
                 train_dataset=train_data,
@@ -195,7 +195,7 @@ class Train:
         return eval_results_formatted['test/accuracy']
 
     def objective(self, trial):
-        self.train_with_cross_validation(trial)
+        self.train(trial)
         test_acc = self.evaluate()
         return test_acc
 
