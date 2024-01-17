@@ -38,6 +38,7 @@ class Train:
     def __init__(self, data_dir, wandb_project, pre_trained_model, pre_process=False,
                  binary=False, folds=10):
 
+        self.trainer = None
         self.training_arguments = None
         set_seed(100)
 
@@ -125,7 +126,7 @@ class Train:
         config['trial.number'] = trial.number
 
         if self.pre_process:
-            tags = ['preprocessed', 'no custom weights']
+            tags = ['preprocessed', 'no custom weights', 'DEV']
         else:
             tags = None
 
@@ -162,7 +163,7 @@ class Train:
             train_data = self.train_test_data['train'].select(train_idxs)
             validation_data = self.train_test_data['train'].select(val_idxs)
 
-            trainer = Trainer(
+            self.trainer = Trainer(
                 # weights=self.calculate_class_weights(),
                 model=self.model,
                 args=self.training_arguments,
@@ -173,13 +174,15 @@ class Train:
                 compute_metrics=self.compute_metrics,
             )
 
-            trainer.train()
+            self.trainer.train()
 
     def evaluate(self):
-        X = self.tokenizer_vectorizer.get_embeddings(self.train_test_data['test'])
-        y = self.train_test_data['test']['label']
+        self.model.eval()
 
-        metrics = self.compute_metrics((self.model.predict_proba(X), y))
+        model_predictions = self.trainer.predict(self.train_test_data['test'])
+        print(model_predictions)
+
+        metrics = self.compute_metrics(model_predictions)
 
         eval_results_formatted = {"test/" + key: item for key, item in metrics.items()}
 
@@ -212,7 +215,8 @@ def main():
         data_dir='data/code_search_net_relevance.hf',
         binary=False,
         wandb_project='JavaDoc-Relevance-Binary-Classifier',
-        pre_process=args.pre_process
+        pre_process=args.pre_process,
+        folds=2
     )
 
     study = optuna.create_study(direction='maximize')
