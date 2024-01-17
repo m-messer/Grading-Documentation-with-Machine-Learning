@@ -14,26 +14,6 @@ import evaluate
 import seaborn as sns
 
 
-class CustomTrainer(Trainer):
-    def __init__(self, weights, model, args, train_dataset, eval_dataset, tokenizer, data_collator, compute_metrics):
-        self.weights = weights
-        super().__init__(model=model,
-                         args=args,
-                         train_dataset=train_dataset,
-                         eval_dataset=eval_dataset,
-                         tokenizer=tokenizer,
-                         data_collator=data_collator,
-                         compute_metrics=compute_metrics)
-
-    def compute_loss(self, model, inputs, return_outputs=False):
-        labels = inputs.pop('labels')
-        outputs = model(**inputs)
-        logits = outputs.get('logits')
-        loss_fn = nn.CrossEntropyLoss(weight=tensor(self.weights, device=model.device))
-        loss = loss_fn(logits.view(-1, self.model.config.num_labels), labels.view(-1))
-
-        return (loss, outputs) if return_outputs else loss
-
 class Train:
     def __init__(self, data_dir, wandb_project, pre_trained_model, pre_process=False,
                  binary=False, folds=10):
@@ -57,7 +37,6 @@ class Train:
         self.data = self.tokenizer_vectorizer.get_pre_trained_tokenized_data()
 
         self.train_test_data = self.data.train_test_split(test_size=0.2)
-        self.weights = self.calculate_class_weights()
 
         Path('plots').mkdir(exist_ok=True)
 
@@ -86,11 +65,6 @@ class Train:
         self.accuracy = evaluate.load('accuracy')
         self.recall = evaluate.load('recall')
         self.precision = evaluate.load('precision')
-
-    def calculate_class_weights(self):
-        class_count = self.data.to_pandas().groupby('label').count()['input_ids'].to_list()
-        total = sum(class_count)
-        return [1 - (val / total) for val in class_count]
 
     def format_metrics(self, metrics, prefix):
         return {prefix + "/" + key: item for key, item in metrics.items()}
@@ -126,7 +100,7 @@ class Train:
         config['trial.number'] = trial.number
 
         if self.pre_process:
-            tags = ['preprocessed', 'no custom weights', 'DEV']
+            tags = ['preprocessed', 'no custom weights', 'new_eval']
         else:
             tags = None
 
@@ -164,7 +138,6 @@ class Train:
             validation_data = self.train_test_data['train'].select(val_idxs)
 
             self.trainer = Trainer(
-                # weights=self.calculate_class_weights(),
                 model=self.model,
                 args=self.training_arguments,
                 train_dataset=train_data,
@@ -180,16 +153,15 @@ class Train:
         self.model.eval()
 
         model_predictions = self.trainer.predict(self.train_test_data['test'])
-        print(model_predictions)
+        print(model_predictions.metrics)
 
-        metrics = self.compute_metrics(model_predictions)
-
-        eval_results_formatted = {"test/" + key: item for key, item in metrics.items()}
+        eval_results_formatted = \
+            {"test/" + key.split('_', 1)[1]: item for key, item in model_predictions.metrics.items()}
 
         print("Test Results:")
         print(str(eval_results_formatted))
         wandb.log(eval_results_formatted)
-        return metrics['accuracy']
+        return eval_results_formatted['test/accuracy']
 
     def objective(self, trial):
         self.train_with_cross_validation(trial)
@@ -216,7 +188,6 @@ def main():
         binary=False,
         wandb_project='JavaDoc-Relevance-Binary-Classifier',
         pre_process=args.pre_process,
-        folds=2
     )
 
     study = optuna.create_study(direction='maximize')
