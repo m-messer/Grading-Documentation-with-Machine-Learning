@@ -1,22 +1,21 @@
 import argparse
+from pathlib import Path
+from random import seed
 
 import matplotlib.pyplot as plt
+import numpy as np
+import optuna
+import seaborn as sns
+from sklearn.ensemble import RandomForestClassifier
 from sklearn.linear_model import LogisticRegression
-from sklearn.metrics import log_loss
 from sklearn.model_selection import StratifiedKFold
 from sklearn.naive_bayes import BernoulliNB
 from sklearn.neighbors import KNeighborsClassifier
-from sklearn.ensemble import RandomForestClassifier
 from sklearn.tree import DecisionTreeClassifier
 
-from tokeniser_vectorizer import TokenizerVectorizer
 import wandb
-import numpy as np
-import evaluate
-from random import seed
-import optuna
-import seaborn as sns
-from pathlib import Path
+from metrics import compute_metrics_trad, format_metrics
+from tokeniser_vectorizer import TokenizerVectorizer
 
 
 class Train:
@@ -48,9 +47,9 @@ class Train:
 
         Path('plots').mkdir(exist_ok=True)
 
-        sns.countplot(self.train_test_data['train'].to_pandas(), x='label', color=(187/255, 187/255, 187/255))
+        sns.countplot(self.train_test_data['train'].to_pandas(), x='label', color=(187 / 255, 187 / 255, 187 / 255))
         plt.savefig('plots/train_data.pdf')
-        sns.countplot(self.train_test_data['test'].to_pandas(), x='label', color=(187/255, 187/255, 187/255))
+        sns.countplot(self.train_test_data['test'].to_pandas(), x='label', color=(187 / 255, 187 / 255, 187 / 255))
         plt.savefig('plots/test_data.pdf')
 
         self.model = None
@@ -59,40 +58,6 @@ class Train:
             self.labels = [0, 1]
         else:
             self.labels = [0, 1, 2, 3]
-
-        self.f1 = evaluate.load('f1')
-        self.accuracy = evaluate.load('accuracy')
-        self.recall = evaluate.load('recall')
-        self.precision = evaluate.load('precision')
-
-    def format_metrics(self, metrics, prefix):
-        return {prefix + "/" + key: item for key, item in metrics.items()}
-
-    def compute_metrics(self, predictions, prediction_prob, labels):
-
-        accuracy_res = self.accuracy.compute(predictions=predictions, references=labels)['accuracy']
-        f1_macro_res = self.f1.compute(predictions=predictions, references=labels, average='macro')['f1']
-        f1_micro_res = self.f1.compute(predictions=predictions, references=labels, average='micro')['f1']
-        f1_weighted_res = self.f1.compute(predictions=predictions, references=labels, average='weighted')['f1']
-        recall_macro_res = self.recall.compute(predictions=predictions, references=labels, average='macro')['recall']
-        recall_micro_res = self.recall.compute(predictions=predictions, references=labels, average='micro')['recall']
-        recall_weighted_res = self.recall.compute(predictions=predictions, references=labels, average='weighted')[
-            'recall']
-        precision_macro_res = self.precision.compute(predictions=predictions, references=labels, average='macro')[
-            'precision']
-        precision_micro_res = self.precision.compute(predictions=predictions, references=labels, average='micro')[
-            'precision']
-        precision_weighted_res = self.precision.compute(predictions=predictions, references=labels, average='weighted')[
-            'precision']
-        loss = log_loss(y_true=labels, y_pred=prediction_prob, labels=self.labels)
-
-        return {'accuracy': accuracy_res,
-                'f1_macro': f1_macro_res, 'f1_micro': f1_micro_res, 'f1_weighted': f1_weighted_res,
-                'recall_macro': recall_macro_res, 'recall_micro': recall_micro_res,
-                'recall_weighted': recall_weighted_res, 'precision_macro': precision_macro_res,
-                'precision_micro': precision_micro_res, 'precision_weighted': precision_weighted_res,
-                'loss': loss
-                }
 
     def train_with_cross_validation(self, trial):
         if self.model_name == 'Bernolli':
@@ -150,10 +115,10 @@ class Train:
             self.model.fit(X_train, y)
 
             X_val = self.tokenizer_vectorizer.get_embeddings(validation_data)
-            metrics = self.compute_metrics(self.model.predict(X_val),
+            metrics = compute_metrics_trad(self.model.predict(X_val),
                                            self.model.predict_proba(X_val), validation_data['label'])
 
-            eval_results_formatted = self.format_metrics(metrics, 'eval')
+            eval_results_formatted = format_metrics(metrics, 'eval')
 
             print("Eval Results:")
             print(str(eval_results_formatted))
