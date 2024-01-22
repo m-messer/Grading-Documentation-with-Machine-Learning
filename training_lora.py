@@ -5,6 +5,7 @@ from pathlib import Path
 import optuna
 from matplotlib import pyplot as plt
 
+from data_processor import get_label_info
 from metrics import compute_metrics
 from tokeniser_vectorizer import TokenizerVectorizer
 from transformers import Trainer, TrainingArguments, AutoModelForSequenceClassification, set_seed
