@@ -1,10 +1,9 @@
-from datasets import Dataset
 from sklearn.feature_extraction.text import CountVectorizer, TfidfVectorizer
 from transformers import AutoTokenizer, DataCollatorWithPadding, AutoModel
 import torch
 import numpy as np
 
-from preprocessor import over_sample
+from data_processor import get_data
 
 
 class MissingParameterError(Exception):
@@ -13,7 +12,6 @@ class MissingParameterError(Exception):
 
 
 class TokenizerVectorizer:
-
     VECTORISATION_METHODS = ['pre-trained', 'BoW', 'TfIdf']
 
     def __init__(self, vectorization_method, data_dir, binary=False, pre_trained_model=None, pre_process=False):
@@ -21,10 +19,7 @@ class TokenizerVectorizer:
             message = "Please supply a vectorisation method from:" + ' '.join(self.VECTORISATION_METHODS)
             raise MissingParameterError(message)
 
-        self.data = Dataset.load_from_disk(data_dir)
-
-        if pre_process:
-            self.data = over_sample(self.data)
+        self.data = get_data(data_dir, binary, pre_process)
 
         self.vectorizer_method = vectorization_method
 
@@ -50,20 +45,11 @@ class TokenizerVectorizer:
 
         self.max_size = None
 
-        if binary:
-            self.data = self.data.map(self.convert_to_binary)
-
-    def convert_to_binary(self, row):
-        if row['label'] in [2, 3]:
-            row['label'] = 1
-
-        return row
-
-    def __preprocess(self, row):
+    def __get_tokens(self, row):
         return self.tokenizer(row['text'], truncation=True, padding=True)
 
     def get_pre_trained_tokenized_data(self):
-        data_tokens = self.data.map(self.__preprocess)
+        data_tokens = self.data.map(self.__get_tokens)
         self.max_size = max([len(sent) for sent in data_tokens['input_ids']])
         return data_tokens
 
