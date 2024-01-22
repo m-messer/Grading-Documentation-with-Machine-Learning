@@ -1,5 +1,6 @@
 import argparse
 import itertools
+import warnings
 from pathlib import Path
 
 import optuna
@@ -83,7 +84,10 @@ class Train:
         for r in range(1, len(target_modules) + 1):
             combinations.extend([list(x) for x in itertools.combinations(iterable=target_modules, r=r)])
 
-        lora_modules = trial.suggest_categorical('lora_modules', combinations)
+        with warnings.catch_warnings():
+            warnings.filterwarnings('ignore', category=UserWarning)
+            lora_modules = trial.suggest_categorical('lora_modules', combinations)
+
         lora_rank = trial.suggest_categorical('lora_rank', [8, 16, 32, 64])
 
         lora_config = LoraConfig(
