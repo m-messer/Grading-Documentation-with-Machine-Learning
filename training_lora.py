@@ -63,7 +63,7 @@ class Train:
         config['trial.number'] = trial.number
 
         if self.pre_process:
-            tags = ['preprocessed', 'no custom weights', 'DEV']
+            tags = ['preprocessed', 'no custom weights']
         else:
             tags = None
 
