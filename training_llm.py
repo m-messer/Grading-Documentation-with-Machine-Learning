@@ -4,6 +4,7 @@ from pathlib import Path
 import optuna
 from matplotlib import pyplot as plt
 
+from data_processor import get_label_info
 from metrics import compute_metrics
 from tokeniser_vectorizer import TokenizerVectorizer
 from transformers import Trainer, TrainingArguments, AutoModelForSequenceClassification, set_seed
@@ -45,16 +46,7 @@ class Train:
         sns.countplot(self.train_test_data['test'].to_pandas(), x='label')
         plt.savefig('plots/test_data.pdf')
 
-        if binary:
-            self.id2label = {0: 'irrelevant', 1: 'relevant'}
-            self.label2id = {'irrelevant': 0, 'relevant': 1}
-
-            label_count = 2
-        else:
-            self.id2label = {0: 'irrelevant', 1: 'partially irrelevant', 2: 'partially relevant', 3: 'relevant'}
-            self.label2id = {'irrelevant': 0, 'partially irrelevant': 1, 'partially relevant': 2, 'relevant': 1}
-
-            label_count = 4
+        self.id2label, self.label2id, label_count = get_label_info(binary=binary)
 
         self.model = AutoModelForSequenceClassification.from_pretrained(pre_trained_model, num_labels=label_count,
                                                                         id2label=self.id2label, label2id=self.label2id)

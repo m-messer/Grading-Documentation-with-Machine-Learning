@@ -1,6 +1,21 @@
 from datasets import Dataset, interleave_datasets
 
 
+def get_label_info(binary):
+    if binary:
+        id2label = {0: 'irrelevant', 1: 'relevant'}
+        label2id = {'irrelevant': 0, 'relevant': 1}
+
+        label_count = 2
+    else:
+        id2label = {0: 'irrelevant', 1: 'partially irrelevant', 2: 'partially relevant', 3: 'relevant'}
+        label2id = {'irrelevant': 0, 'partially irrelevant': 1, 'partially relevant': 2, 'relevant': 1}
+
+        label_count = 4
+
+    return id2label, label2id, label_count
+
+
 def get_data(data_dir, binary=False, pre_process=False):
     data = Dataset.load_from_disk(data_dir)
 
