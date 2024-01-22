@@ -1,0 +1,14 @@
+pandas
+torch
+datasets
+transformers
+huggingface-hub>=0.17.0
+tqdm
+seaborn
+scikit-learn
+wandb
+evaluate
+accelerate
+optuna
+peft
+openai
