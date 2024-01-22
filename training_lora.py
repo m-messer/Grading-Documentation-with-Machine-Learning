@@ -119,7 +119,7 @@ class Train:
         batch_size = trial.suggest_categorical('batch_size', [16, 32])
         epochs = trial.suggest_categorical('epochs', [10, 50, 100])
 
-        target_modules = ['query', 'value', 'key', 'dropout', 'dense']
+        target_modules = ['query', 'value', 'key', 'dense', 'linear', 'embeddings']
         combinations = []
 
         for r in range(1, len(target_modules) + 1):
