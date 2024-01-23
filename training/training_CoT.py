@@ -22,7 +22,7 @@ class Train:
                   'the code between 0 and 3.'
 
     def __init__(self, data_dir, wandb_project, preprocess=False):
-        with open('secrets/wandb_api_key.txt') as f:
+        with open('../secrets/wandb_api_key.txt') as f:
             wandb.login(key=f.read())
 
         self.model = 'gpt-3.5-turbo'
@@ -61,6 +61,6 @@ class Train:
 
 
 if __name__ == '__main__':
-    train = Train(data_dir='data/code_search_net_relevance.hf', wandb_project='')
+    train = Train(data_dir='../data/code_search_net_relevance.hf', wandb_project='')
 
     train.send_gpt_request()
