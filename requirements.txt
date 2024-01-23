@@ -12,3 +12,4 @@ accelerate
 optuna
 peft
 openai
+function_parser
