@@ -6,7 +6,7 @@ from pathlib import Path
 import optuna
 from matplotlib import pyplot as plt
 
-from data_processor import get_label_info
+from data_processing.data_processor import get_label_info
 from metrics import compute_metrics
 from tokeniser_vectorizer import TokenizerVectorizer
 from transformers import Trainer, TrainingArguments, AutoModelForSequenceClassification, set_seed
@@ -27,7 +27,7 @@ class Train:
         self.training_arguments = None
         set_seed(100)
 
-        with open('secrets/wandb_api_key.txt') as f:
+        with open('../secrets/wandb_api_key.txt') as f:
             wandb.login(key=f.read())
 
         self.wandb_project = wandb_project
@@ -43,7 +43,7 @@ class Train:
 
         self.train_test_data = self.data.train_test_split(test_size=0.2)
 
-        Path('plots').mkdir(exist_ok=True)
+        Path('../plots').mkdir(exist_ok=True)
 
         sns.countplot(self.train_test_data['train'].to_pandas(), x='label')
         plt.savefig('plots/train_data.pdf')
@@ -103,7 +103,7 @@ class Train:
         self.lora_model = get_peft_model(self.model, lora_config)
 
         self.training_arguments = TrainingArguments(
-            output_dir='huggingface_models',
+            output_dir='../huggingface_models',
             learning_rate=learning_rate,
             per_device_train_batch_size=batch_size,
             per_device_eval_batch_size=batch_size,
@@ -171,7 +171,7 @@ def main():
 
     train = Train(
         pre_trained_model=args.pre_trained,
-        data_dir='data/code_search_net_relevance.hf',
+        data_dir='../data/code_search_net_relevance.hf',
         binary=False,
         wandb_project='JavaDoc-Relevance-Binary-Classifier',
         pre_process=args.pre_process,

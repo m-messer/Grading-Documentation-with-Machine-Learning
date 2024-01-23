@@ -26,7 +26,7 @@ class Train:
 
         seed(100)
 
-        with open('secrets/wandb_api_key.txt') as f:
+        with open('../secrets/wandb_api_key.txt') as f:
             wandb.login(key=f.read())
 
         self.wandb_project = wandb_project
@@ -45,7 +45,7 @@ class Train:
         else:
             self.train_test_data = self.tokenizer_vectorizer.data.train_test_split(test_size=0.2)
 
-        Path('plots').mkdir(exist_ok=True)
+        Path('../plots').mkdir(exist_ok=True)
 
         sns.countplot(self.train_test_data['train'].to_pandas(), x='label', color=(187 / 255, 187 / 255, 187 / 255))
         plt.savefig('plots/train_data.pdf')
@@ -171,7 +171,7 @@ def main():
 
     train = Train(
         pre_trained_model=args.pre_trained,
-        data_dir='data/code_search_net_relevance.hf',
+        data_dir='../data/code_search_net_relevance.hf',
         binary=False,
         wandb_project='JavaDoc-Relevance-Binary-Classifier',
         model_name=args.model,

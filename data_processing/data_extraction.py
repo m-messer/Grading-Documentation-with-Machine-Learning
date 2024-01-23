@@ -16,7 +16,7 @@ tqdm.pandas()
 # In[84]:
 
 
-relevance_df = pd.read_csv('data/annotationStore.csv')
+relevance_df = pd.read_csv('../data/annotationStore.csv')
 relevance_df = relevance_df[relevance_df['Language'] == 'Java']
 relevance_df.head()
 

@@ -3,7 +3,7 @@ from transformers import AutoTokenizer, DataCollatorWithPadding, AutoModel
 import torch
 import numpy as np
 
-from data_processor import get_data
+from data_processing.data_processor import get_data
 
 
 class MissingParameterError(Exception):
@@ -86,7 +86,7 @@ class TokenizerVectorizer:
 
 if __name__ == "__main__":
     data_curator = TokenizerVectorizer(vectorization_method='TfIdf', pre_trained_model='microsoft/codebert-base',
-                                       data_dir='data/code_search_net_relevance.hf', binary=True)
+                                       data_dir='../data/code_search_net_relevance.hf', binary=True)
     # tokenized_data = data_curator.get_pre_trained_tokenized_data()
     embeddings = data_curator.get_embeddings(data_curator.data)
     print(embeddings)

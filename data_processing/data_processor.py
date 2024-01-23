@@ -46,4 +46,4 @@ def __convert_to_binary(row):
 
 
 if __name__ == '__main__':
-    print(get_data(data_dir='data/code_search_net_relevance.hf', pre_process=True))
+    print(get_data(data_dir='../data/code_search_net_relevance.hf', pre_process=True))
