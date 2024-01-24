@@ -281,7 +281,7 @@ fabric.properties
 
 .DS_Store
 
-data/
+#data/
 
 secrets/
 
