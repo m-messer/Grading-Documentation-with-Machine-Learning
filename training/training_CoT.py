@@ -30,6 +30,7 @@ class Train:
             wandb.login(key=f.read())
 
         self.client = OpenAI()
+        self.preprocessed = preprocess
 
         self.model = 'gpt-3.5-turbo'
         self.number_of_examples = number_of_examples
@@ -39,9 +40,6 @@ class Train:
         self.data = get_data(data_dir=data_dir, pre_process=preprocess)
         self.data = self.data.map(partial(self.__create_prompt,
                                           prompt=self.PROMPT))
-
-        self.predictions = []
-        self.labels = []
 
     def __create_prompt(self, row, prompt):
         row['prompt'] = prompt.format(nl=row['query'], code=row['func_code_string'], label=row['label'])
@@ -71,8 +69,7 @@ class Train:
 
     def __format_results(self, response, label):
         pred = [int(s) for s in response.replace('.', '').split() if s.isdigit()][0]
-        self.predictions.append(pred)
-        self.labels.append(label)
+        return pred, label
 
     async def send_gpt_request(self):
 
@@ -85,10 +82,13 @@ class Train:
 
         response = completion.choices[0].message.content
 
-        self.__format_results(response, test_label)
+        return self.__format_results(response, test_label)
 
     async def train(self, trial):
-        tags = ['DEV']
+        tags = []
+
+        if self.preprocessed:
+            tags.append('preprocessed')
 
         number_of_examples = trial.suggest_categorical('number_of_examples', [3, 5, 10])
         self.number_of_examples = number_of_examples
@@ -96,6 +96,7 @@ class Train:
         config = dict(trial.params)
         config['trial.number'] = trial.number
         config['epochs'] = self.epochs
+        config['prompt'] = self.PROMPT
 
         wandb.init(
             project=self.wandb_project,
@@ -105,10 +106,14 @@ class Train:
             config=config
         )
 
+        predictions, labels = [], []
         for i in range(0, self.epochs):
-            await self.send_gpt_request()
+            pred, label = await self.send_gpt_request()
 
-            metrics = compute_metrics_cot(self.predictions, self.labels)
+            predictions.append(pred)
+            labels.append(label)
+
+            metrics = compute_metrics_cot(predictions, labels)
             results_formatted = {"test/" + key: item for key, item in metrics.items()}
             results_formatted['epoch'] = i
             print(results_formatted)
@@ -122,7 +127,10 @@ class Train:
         return asyncio.run(train.train(trial))
 
 if __name__ == '__main__':
-    train = Train(data_dir='../data/code_search_net_relevance.hf', wandb_project='JavaDoc-Relevance-Binary-Classifier')
+    train = Train(data_dir='../data/code_search_net_relevance.hf',
+                  wandb_project='JavaDoc-Relevance-Binary-Classifier',
+                  preprocess=True,
+                  epochs=20)
 
     study = optuna.create_study(direction='maximize')
     study.optimize(train.objective, n_trials=5)
