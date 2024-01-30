@@ -144,5 +144,5 @@ ds_train_filtered[0]
 # In[97]:
 
 
-ds_train_filtered.save_to_disk("data/code_search_net_relevance.hf")
+ds_train_filtered.save_to_disk("../data/code_search_net_relevance.hf")
 

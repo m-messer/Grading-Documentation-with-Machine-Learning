@@ -46,4 +46,8 @@ def __convert_to_binary(row):
 
 
 if __name__ == '__main__':
-    print(get_data(data_dir='../data/code_search_net_relevance.hf', pre_process=True))
+    raw_df = get_data(data_dir='../data/code_search_net_relevance.hf', pre_process=False).to_csv('../data/raw.csv')
+    proc_df = get_data(data_dir='../data/code_search_net_relevance.hf', pre_process=True).to_csv('../data/proc.csv')
+
+
+
