@@ -1,13 +1,14 @@
+import csv
+from collections import namedtuple
+from datetime import datetime
 from functools import partial
 
-import optuna
+import openai
 from openai import OpenAI
 
 import asyncio
-import wandb
 import random
 from data_processing.data_processor import get_data
-from training.metrics import compute_metrics_cot
 
 """
 TODO:
@@ -25,114 +26,87 @@ class Train:
     PROMPT = 'Take the description "{nl}" and the code "{code}" and classify how relevant the description is to ' \
              'the code between 0 and 3.'
 
-    def __init__(self, data_dir, wandb_project, preprocess=False, number_of_examples=5, epochs=10):
-        with open('../secrets/wandb_api_key.txt') as f:
-            wandb.login(key=f.read())
-
+    def __init__(self, data_dir, preprocess=False):
         self.client = OpenAI()
         self.preprocessed = preprocess
 
         self.model = 'gpt-3.5-turbo'
-        self.number_of_examples = number_of_examples
-        self.epochs = epochs
 
-        self.wandb_project = wandb_project
         self.data = get_data(data_dir=data_dir, pre_process=preprocess)
         self.data = self.data.map(partial(self.__create_prompt,
                                           prompt=self.PROMPT))
+
+        self.Result = namedtuple('Result', 'epochs number_of_examples messages response label')
+        self.results = []
 
     def __create_prompt(self, row, prompt):
         row['prompt'] = prompt.format(nl=row['query'], code=row['func_code_string'], label=row['label'])
 
         return row
 
-    def __make_messages(self):
+    def __make_messages(self, number_of_examples):
         messages = [
             {'role': 'system', 'content': 'You will be provided a description and a piece of code, and your task '
                                           'is to classify is between 0 and 3.'},
         ]
 
-        random_sample = random.sample(range(0, self.data.shape[0]), self.number_of_examples + 1)
+        random_sample = random.sample(range(0, self.data.shape[0]), number_of_examples + 1)
         random_sample_df = self.data.select(random_sample)
 
-        for i in range(0, self.number_of_examples):
+        for i in range(0, number_of_examples):
             messages.append({'role': 'user',
-                             'content': random_sample_df[i]['prompt'] + 'The answer is ' +
-                                        str(random_sample_df[i]['label'])})
+                             'content': random_sample_df[i]['prompt'] + "Let's think step by step"})
 
         messages.append({'role': 'user',
-                         'content': random_sample_df[self.number_of_examples]['prompt']})
+                         'content': random_sample_df[number_of_examples]['prompt']})
 
-        test_label = random_sample_df[self.number_of_examples]['label']
+        test_label = random_sample_df[number_of_examples]['label']
 
         return messages, test_label
 
-    def __format_results(self, response, label):
-        pred = [int(s) for s in response.replace('.', '').split() if s.isdigit()][0]
-        return pred, label
+    async def send_gpt_request(self, number_of_examples):
 
-    async def send_gpt_request(self):
+        messages, test_label = self.__make_messages(number_of_examples=number_of_examples)
 
-        messages, test_label = self.__make_messages()
-
-        completion = self.client.chat.completions.create(
-            model=self.model,
-            messages=messages
-        )
+        try:
+            completion = self.client.chat.completions.create(
+                model=self.model,
+                messages=messages
+            )
+        except openai.BadRequestError:
+            print("Message two long")
 
         response = completion.choices[0].message.content
+        print("RESPONSE: ", response)
 
-        return self.__format_results(response, test_label)
+        return messages, response, test_label
 
-    async def train(self, trial):
-        tags = []
-
-        if self.preprocessed:
-            tags.append('preprocessed')
-
-        number_of_examples = trial.suggest_categorical('number_of_examples', [3, 5, 10])
-        self.number_of_examples = number_of_examples
-
-        config = dict(trial.params)
-        config['trial.number'] = trial.number
-        config['epochs'] = self.epochs
-        config['prompt'] = self.PROMPT
-
-        wandb.init(
-            project=self.wandb_project,
-            group="CoT:" + self.model,
-            tags=tags,
-            reinit=True,
-            config=config
-        )
-
-        predictions, labels = [], []
-        for i in range(0, self.epochs):
-            pred, label = await self.send_gpt_request()
-
-            predictions.append(pred)
-            labels.append(label)
-
-            metrics = compute_metrics_cot(predictions, labels)
-            results_formatted = {"test/" + key: item for key, item in metrics.items()}
-            results_formatted['epoch'] = i
-            print(results_formatted)
-            wandb.log(results_formatted)
+    async def train(self, epochs, number_of_examples):
+        for i in range(0, epochs):
+            messages, response, label = await self.send_gpt_request(number_of_examples=number_of_examples)
+            self.results.append(self.Result(epochs=epochs, number_of_examples=number_of_examples,
+                                            messages=messages, response=response, label=label))
 
             # Wait to not spam the GPT API with requests
             await asyncio.sleep(10)
 
-        return metrics['accuracy']
-    def objective(self, trial):
-        return asyncio.run(train.train(trial))
+    def save_to_csv(self):
+        timestr = datetime.now().strftime("%Y%m%d-%H%M%S")
+
+        with open('../data/cot_results.csv', 'a') as f:
+            w = csv.writer(f)
+            w.writerow(('time', 'epochs', 'number_of_examples', 'messages', 'response', 'label'))    # field header
+            w.writerows([(timestr, result.epochs, result.number_of_examples, result.messages,
+                          result.response, result.label) for result in self.results])
+
 
 if __name__ == '__main__':
     train = Train(data_dir='../data/code_search_net_relevance.hf',
-                  wandb_project='JavaDoc-Relevance-Binary-Classifier',
-                  preprocess=True,
-                  epochs=20)
+                  preprocess=True)
 
-    study = optuna.create_study(direction='maximize')
-    study.optimize(train.objective, n_trials=5)
+    asyncio.run(train.train(epochs=50, number_of_examples=3))
+    asyncio.run(train.train(epochs=50, number_of_examples=5))
+    asyncio.run(train.train(epochs=50, number_of_examples=10))
+    train.save_to_csv()
 
 
