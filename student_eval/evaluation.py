@@ -5,7 +5,7 @@
 
 
 import pandas as pd
-from training.metrics import compute_metrics
+from metrics import compute_metrics
 from transformers import AutoModelForSequenceClassification, AutoTokenizer, Trainer, DataCollatorWithPadding
 from datasets import Dataset
 

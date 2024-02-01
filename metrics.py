@@ -59,7 +59,9 @@ def compute_metrics_trad(predictions, prediction_prob, labels):
             'precision_micro': precision_micro_res, 'precision_weighted': precision_weighted_res,
             'loss': loss
             }
-def compute_metrics_cot(predictions, labels):
+
+
+def compute_metrics_prompting(predictions, labels):
     accuracy_res = accuracy.compute(predictions=predictions, references=labels)['accuracy']
     f1_macro_res = f1.compute(predictions=predictions, references=labels, average='macro')['f1']
     f1_micro_res = f1.compute(predictions=predictions, references=labels, average='micro')['f1']
