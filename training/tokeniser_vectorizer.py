@@ -7,14 +7,29 @@ from data_processing.data_processor import get_data
 
 
 class MissingParameterError(Exception):
+    """
+    Custom exception to handle missing arguments passed in execution
+    """
     def __init__(self, message):
         super().__init__(message)
 
 
 class TokenizerVectorizer:
+    """
+    A class to handle the tokenizeation and vectorization processes for model training.
+    Includes pre-trained large language models, bag of words and TfIdf.
+    """
     VECTORISATION_METHODS = ['pre-trained', 'BoW', 'TfIdf']
 
     def __init__(self, vectorization_method, data_dir, binary=False, pre_trained_model=None, pre_process=False):
+        """
+        The constructor to state what parameters should be used in the tokenizer and vectorizer
+        :param vectorization_method: Either 'pre-trained', 'BoW', or 'TfIdf'
+        :param data_dir: The path where the raw data is stored
+        :param binary: If the raw data should be processed to binary
+        :param pre_trained_model: The pre-trained model to use for vectorization, None if using other method
+        :param pre_process: If the raw data should be preprocessed
+        """
         if vectorization_method is None:
             message = "Please supply a vectorisation method from:" + ' '.join(self.VECTORISATION_METHODS)
             raise MissingParameterError(message)
@@ -49,11 +64,20 @@ class TokenizerVectorizer:
         return self.tokenizer(row['text'], truncation=True, padding=True)
 
     def get_pre_trained_tokenized_data(self):
+        """
+        Gets the tokens from the pre-trained tokenizer, used when fine-tuning large language models
+        :return: The tokens generate from the pre-trained model, which have been truncated and padded where necessary
+        """
         data_tokens = self.data.map(self.__get_tokens)
         self.max_size = max([len(sent) for sent in data_tokens['input_ids']])
         return data_tokens
 
     def get_embeddings(self, data):
+        """
+        Get the vectorised embeddings for the dataset, using the method selected in the constructor
+        :param data: The data to be vectorised
+        :return: The embeddings from vectorisation process
+        """
         if self.vectorizer_method == 'pre-trained':
             return self.__get_embeddings_pre_trained(data)
         else:
@@ -70,8 +94,6 @@ class TokenizerVectorizer:
         embeddings = []
 
         for row in data:
-            # TODO: switch the processing embeddings to a better process (max pooling is probably the best)
-
             # Get first element of the tensor to get the 2D array of the embeddings
             embed = self.vectorizer(torch.tensor(row['input_ids'])[None, :])[0][0].detach().numpy()
             pad_size = self.max_size - embed.shape[0]

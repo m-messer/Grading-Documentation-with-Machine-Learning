@@ -16,8 +16,21 @@ import seaborn as sns
 
 
 class Train:
+    """
+    The class used for fine-tuning existing large languge models
+    """
     def __init__(self, data_dir, wandb_project, pre_trained_model, pre_process=False,
                  binary=False, folds=10):
+        """
+        The constructor used to setup the HuggingFace trainer and Weights and Biases for logging.
+        10-fold CV used by default.
+        :param data_dir: The path of the dataset to use for training and testing
+        :param wandb_project: The weights and biases project to log results to
+        :param pre_trained_model: The HuggingFace model name
+        :param pre_process: If the data should be pre-processed before training
+        :param binary: If the data should be converted to binary before training
+        :param folds: The number of folds in cross-validation (default 10).
+        """
 
         self.trainer = None
         self.training_arguments = None
@@ -54,6 +67,11 @@ class Train:
         self.model.to(device)
 
     def train_with_cross_validation(self, trial):
+        """
+        The training loop used to fine-tune the large language model.
+        :param trial: The optuna trial used for hyperparamter tuning.
+        :return: None
+        """
         config = dict(trial.params)
         config['trial.number'] = trial.number
 
@@ -108,6 +126,10 @@ class Train:
             self.trainer.train()
 
     def evaluate(self):
+        """
+        Generates metric results from a withheld test set and the fine-tuned models predictions
+        :return: The test accuracy
+        """
         self.model.eval()
 
         model_predictions = self.trainer.predict(self.train_test_data['test'])
@@ -122,6 +144,11 @@ class Train:
         return eval_results_formatted['test/accuracy']
 
     def objective(self, trial):
+        """
+        The objective function for Optuna Hyperparameter search
+        :param trial: The Optuna trial for hyperparameter tuning
+        :return: The test accuracy
+        """
         self.train_with_cross_validation(trial)
         test_acc = self.evaluate()
         return test_acc
@@ -144,7 +171,7 @@ def main():
         pre_trained_model=args.pre_trained,
         data_dir='../data/code_search_net_relevance.hf',
         binary=False,
-        wandb_project='JavaDoc-Relevance-Binary-Classifier',
+        wandb_project='JavaDoc-Relevance-Classifier',
         pre_process=args.pre_process,
     )
 

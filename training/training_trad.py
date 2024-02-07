@@ -19,10 +19,25 @@ from tokeniser_vectorizer import TokenizerVectorizer
 
 
 class Train:
+    """
+    The class used for training using traditional approaches
+    """
     ACCEPTED_MODELS = ['LogisticRegression', 'Bernolli', 'KNeighbours', 'DecisionTree', 'RandomForest']
 
     def __init__(self, data_dir, wandb_project, model_name, vectorisation_method, pre_trained_model=None,
                  binary=False, folds=10, pre_process=False):
+        """
+        Sets up the training loop, and Weights and Biases logging.
+        :param data_dir: The path of the dataset to use for training and testing
+        :param wandb_project: The weights and biases project to log results to
+        :param model_name: The model name from: 'LogisticRegression', 'Bernolli', 'KNeighbours', 'DecisionTree',
+        'RandomForest'
+        :param vectorisation_method: The vectorisation method to be used: ['pre-trained', 'BoW', 'TfIdf']
+        :param pre_trained_model: If pre-trained vectorisation is used, the HuggingFace model
+        :param binary: If the dataset should be convert to binary before training
+        :param folds: The number of folds in cross-validation (default 10).
+        :param pre_process: If the data should be pre-processed before training
+        """
 
         seed(100)
 
@@ -60,6 +75,11 @@ class Train:
             self.labels = [0, 1, 2, 3]
 
     def train_with_cross_validation(self, trial):
+        """
+        The training loop used to train the traditional models
+        :param trial: The optuna trial used for hyperparamter tuning.
+        :return: None
+        """
         if self.model_name == 'Bernolli':
             smoothing = trial.suggest_float('smoothing', 0, 1)
             self.model = BernoulliNB(alpha=smoothing)
@@ -125,6 +145,10 @@ class Train:
             wandb.log(eval_results_formatted)
 
     def evaluate(self):
+        """
+       Generates metric results from a withheld test set and the fine-tuned models predictions
+       :return: The test accuracy
+       """
         X = self.tokenizer_vectorizer.get_embeddings(self.train_test_data['test'])
         y = self.train_test_data['test']['label']
 
@@ -139,6 +163,11 @@ class Train:
         return metrics['accuracy']
 
     def objective(self, trial):
+        """
+       The objective function for Optuna Hyperparameter search
+       :param trial: The Optuna trial for hyperparameter tuning
+       :return: The test accuracy
+       """
         self.train_with_cross_validation(trial)
         test_acc = self.evaluate()
         return test_acc
@@ -173,7 +202,7 @@ def main():
         pre_trained_model=args.pre_trained,
         data_dir='../data/code_search_net_relevance.hf',
         binary=False,
-        wandb_project='JavaDoc-Relevance-Binary-Classifier',
+        wandb_project='JavaDoc-Relevance-Classifier',
         model_name=args.model,
         vectorisation_method=args.vectorizer,
         pre_process=args.pre_process

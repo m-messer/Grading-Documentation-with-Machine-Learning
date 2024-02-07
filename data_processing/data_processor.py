@@ -1,7 +1,12 @@
 from datasets import Dataset, interleave_datasets
 
 
-def get_label_info(binary):
+def get_label_info(binary: bool):
+    """
+    Gets the ID, label and label count dependant if the model training is binary or multi-class.
+    :param binary: If the model training is multiclass or not
+    :return: The id2label and label2id dictionaries, as well as the label count.
+    """
     if binary:
         id2label = {0: 'irrelevant', 1: 'relevant'}
         label2id = {'irrelevant': 0, 'relevant': 1}
@@ -16,7 +21,14 @@ def get_label_info(binary):
     return id2label, label2id, label_count
 
 
-def get_data(data_dir, binary=False, pre_process=False):
+def get_data(data_dir: str, binary: bool = False, pre_process: bool = False):
+    """
+    Loads the data from the disk, runs preprocessing steps and converts multiclass data to binary
+    :param data_dir: The path of the dataset to load
+    :param binary: If the dataset should be converted to binary (classes 2 and 3 become 1)
+    :param pre_process: Oversample the dataset to balance the clases
+    :return: The preprocessed dataset ready for model training
+    """
     data = Dataset.load_from_disk(data_dir)
 
     if pre_process:
@@ -48,6 +60,3 @@ def __convert_to_binary(row):
 if __name__ == '__main__':
     raw_df = get_data(data_dir='../data/code_search_net_relevance.hf', pre_process=False).to_csv('../data/raw.csv')
     proc_df = get_data(data_dir='../data/code_search_net_relevance.hf', pre_process=True).to_csv('../data/proc.csv')
-
-
-
