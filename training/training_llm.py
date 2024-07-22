@@ -63,6 +63,8 @@ class Train:
 
         self.model = AutoModelForSequenceClassification.from_pretrained(pre_trained_model, num_labels=label_count,
                                                                         id2label=self.id2label, label2id=self.label2id)
+
+        self.model.resize_token_embeddings(len(self.tokenizer_vectorizer.tokenizer))
         device = "cuda:0" if cuda.is_available() else "cpu"
         self.model.to(device)
 
@@ -101,6 +103,7 @@ class Train:
             save_strategy="epoch",
             load_best_model_at_end=True,
             save_total_limit=5,
+            save_only_model=True,
             push_to_hub=False,
             report_to=["wandb"]
         )
@@ -121,6 +124,7 @@ class Train:
                 tokenizer=self.tokenizer_vectorizer.tokenizer,
                 data_collator=self.tokenizer_vectorizer.data_collator,
                 compute_metrics=compute_metrics,
+                max_size=2048
             )
 
             self.trainer.train()

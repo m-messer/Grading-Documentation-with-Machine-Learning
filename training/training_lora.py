@@ -67,6 +67,7 @@ class Train:
         self.model = AutoModelForSequenceClassification.from_pretrained(pre_trained_model, num_labels=label_count,
                                                                         id2label=self.id2label, label2id=self.label2id)
 
+        self.model.resize_token_embeddings(len(self.tokenizer_vectorizer.tokenizer))
         device = "cuda:0" if cuda.is_available() else "cpu"
         self.model.to(device)
 
@@ -122,7 +123,7 @@ class Train:
         self.lora_model = get_peft_model(self.model, lora_config)
 
         self.training_arguments = TrainingArguments(
-            output_dir='huggingface_models',
+            output_dir='../huggingface_models',
             learning_rate=learning_rate,
             per_device_train_batch_size=batch_size,
             per_device_eval_batch_size=batch_size,
