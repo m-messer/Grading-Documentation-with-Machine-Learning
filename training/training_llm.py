@@ -65,8 +65,8 @@ class Train:
                                                                         id2label=self.id2label, label2id=self.label2id)
 
         self.model.resize_token_embeddings(len(self.tokenizer_vectorizer.tokenizer))
-        device = "cuda:0" if cuda.is_available() else "cpu"
-        self.model.to(device)
+        # device = "cuda:0" if cuda.is_available() else "cpu"
+        # self.model.to(device)
 
     def train_with_cross_validation(self, trial):
         """
@@ -178,6 +178,10 @@ def main():
         wandb_project='JavaDoc-Relevance-Classifier',
         pre_process=args.pre_process,
     )
+
+    print("GPU COUNT: {}".format(torch.cuda.device_count()))
+    for i in range(torch.cuda.device_count()):
+        print("GPU NAME: {}".format(torch.cuda.get_device_name(i)))
 
     study = optuna.create_study(direction='maximize')
     study.optimize(train.objective, n_trials=args.n_trails)
