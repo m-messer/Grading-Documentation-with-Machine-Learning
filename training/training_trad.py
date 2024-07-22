@@ -12,6 +12,7 @@ from sklearn.model_selection import StratifiedKFold
 from sklearn.naive_bayes import BernoulliNB
 from sklearn.neighbors import KNeighborsClassifier
 from sklearn.tree import DecisionTreeClassifier
+from sklearn.svm import SVC
 
 import wandb
 from metrics import compute_metrics_trad, format_metrics
@@ -22,7 +23,7 @@ class Train:
     """
     The class used for training using traditional approaches
     """
-    ACCEPTED_MODELS = ['LogisticRegression', 'Bernolli', 'KNeighbours', 'DecisionTree', 'RandomForest']
+    ACCEPTED_MODELS = ['LogisticRegression', 'Bernolli', 'KNeighbours', 'DecisionTree', 'RandomForest', 'SVC']
 
     def __init__(self, data_dir, wandb_project, model_name, vectorisation_method, pre_trained_model=None,
                  binary=False, folds=10, pre_process=False):
@@ -41,8 +42,7 @@ class Train:
 
         seed(100)
 
-        with open('../secrets/wandb_api_key.txt') as f:
-            wandb.login(key=f.read())
+        wandb.login()
 
         self.wandb_project = wandb_project
         self.folds = folds
@@ -94,6 +94,8 @@ class Train:
             self.model = KNeighborsClassifier(nn)
         elif self.model_name == 'LogisticRegression':
             self.model = LogisticRegression(multi_class='multinomial')
+        elif self.model_name == 'SVC':
+            self.model = SVC()
         else:
             rf_max_depth = trial.suggest_int('rf_max_depth', 2, 32, log=True)
             self.model = RandomForestClassifier(max_depth=rf_max_depth, n_estimators=10)
@@ -135,8 +137,12 @@ class Train:
             self.model.fit(X_train, y)
 
             X_val = self.tokenizer_vectorizer.get_embeddings(validation_data)
-            metrics = compute_metrics_trad(self.model.predict(X_val),
-                                           self.model.predict_proba(X_val), validation_data['label'])
+            try:
+                metrics = compute_metrics_trad(self.model.predict(X_val),
+                                               self.model.predict_proba(X_val), validation_data['label'])
+            except AttributeError:
+                metrics = compute_metrics_trad(self.model.predict(X_val),
+                                               None, validation_data['label'])
 
             eval_results_formatted = format_metrics(metrics, 'eval')
 
