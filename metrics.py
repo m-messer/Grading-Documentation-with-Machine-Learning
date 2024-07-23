@@ -63,10 +63,8 @@ def compute_metrics_trad(predictions, prediction_prob, labels):
     precision_weighted_res = precision.compute(predictions=predictions, references=labels, average='weighted')[
         'precision']
 
-    if prediction_prob is not None:
-        loss = log_loss(y_true=labels, y_pred=prediction_prob, labels=labels)
-    else:
-        loss = None
+
+    loss = log_loss(y_true=labels, y_pred=prediction_prob, labels=labels)
 
     return {'accuracy': accuracy_res,
             'f1_macro': f1_macro_res, 'f1_micro': f1_micro_res, 'f1_weighted': f1_weighted_res,

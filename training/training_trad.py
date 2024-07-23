@@ -95,7 +95,7 @@ class Train:
         elif self.model_name == 'LogisticRegression':
             self.model = LogisticRegression(multi_class='multinomial')
         elif self.model_name == 'SVC':
-            self.model = SVC()
+            self.model = SVC(probability=True)
         else:
             rf_max_depth = trial.suggest_int('rf_max_depth', 2, 32, log=True)
             self.model = RandomForestClassifier(max_depth=rf_max_depth, n_estimators=10)
@@ -137,12 +137,8 @@ class Train:
             self.model.fit(X_train, y)
 
             X_val = self.tokenizer_vectorizer.get_embeddings(validation_data)
-            try:
-                metrics = compute_metrics_trad(self.model.predict(X_val),
-                                               self.model.predict_proba(X_val), validation_data['label'])
-            except AttributeError:
-                metrics = compute_metrics_trad(self.model.predict(X_val),
-                                               None, validation_data['label'])
+            metrics = compute_metrics_trad(self.model.predict(X_val),
+                                           self.model.predict_proba(X_val), validation_data['label'])
 
             eval_results_formatted = format_metrics(metrics, 'eval')
 
