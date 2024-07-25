@@ -14,6 +14,7 @@ import wandb
 from sklearn.model_selection import StratifiedKFold
 import numpy as np
 import seaborn as sns
+import torch
 
 
 class Train:
@@ -37,8 +38,7 @@ class Train:
         self.training_arguments = None
         set_seed(100)
 
-        with open('../secrets/wandb_api_key.txt') as f:
-            wandb.login(key=f.read())
+        wandb.login()
 
         self.wandb_project = wandb_project
         self.folds = folds
@@ -182,7 +182,7 @@ def main():
 
     train = Train(
         pre_trained_model=args.pre_trained,
-        data_dir='../data/code_search_net_relevance.hf',
+        data_dir='data/code_search_net_relevance.hf',
         binary=False,
         wandb_project='JavaDoc-Relevance-Classifier-Journal-CodeSearchNet',
         sampling_method=args.sampling_method

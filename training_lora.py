@@ -41,8 +41,7 @@ class Train:
         self.training_arguments = None
         set_seed(100)
 
-        with open('secrets/wandb_api_key.txt') as f:
-            wandb.login(key=f.read())
+        wandb.login()
 
         self.wandb_project = wandb_project
         self.folds = folds
