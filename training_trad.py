@@ -7,6 +7,7 @@ import matplotlib.pyplot as plt
 import numpy as np
 import optuna
 import seaborn as sns
+from imblearn.over_sampling import RandomOverSampler
 from sklearn.ensemble import RandomForestClassifier
 from sklearn.linear_model import LogisticRegression
 from sklearn.model_selection import StratifiedKFold
@@ -27,7 +28,7 @@ class Train:
     ACCEPTED_MODELS = ['LogisticRegression', 'Bernolli', 'KNeighbours', 'DecisionTree', 'RandomForest', 'SVC']
 
     def __init__(self, data_dir, wandb_project, model_name, vectorisation_method, pre_trained_model=None,
-                 binary=False, folds=10, pre_process=False):
+                 binary=False, folds=10, sampling_method='None'):
         """
         Sets up the training loop, and Weights and Biases logging.
         :param data_dir: The path of the dataset to use for training and testing
@@ -38,7 +39,7 @@ class Train:
         :param pre_trained_model: If pre-trained vectorisation is used, the HuggingFace model
         :param binary: If the dataset should be convert to binary before training
         :param folds: The number of folds in cross-validation (default 10).
-        :param pre_process: If the data should be pre-processed before training
+        :param sampling_method: Which sampling method to use when training
         """
 
         seed(100)
@@ -49,11 +50,12 @@ class Train:
         self.folds = folds
         self.model_name = model_name
         self.vectorisation_method = vectorisation_method
-        self.pre_process = pre_process
 
         self.tokenizer_vectorizer = TokenizerVectorizer(vectorization_method=vectorisation_method,
                                                         data_dir=data_dir, binary=binary,
-                                                        pre_trained_model=pre_trained_model, pre_process=pre_process)
+                                                        pre_trained_model=pre_trained_model)
+
+        self.sampling_method = sampling_method
 
         if vectorisation_method == 'pre-trained':
             self.data = self.tokenizer_vectorizer.get_pre_trained_tokenized_data()
@@ -63,6 +65,10 @@ class Train:
 
         self.train_val_X = pd.DataFrame(self.tokenizer_vectorizer.get_embeddings(self.train_test_data['train']))
         self.train_val_y = pd.DataFrame(self.train_test_data['train']['label'], columns=['label'])
+
+        if sampling_method == 'RandomOverSample':
+            ros = RandomOverSampler(random_state=0)
+            self.train_val_X, self.train_val_y = ros.fit_resample(self.train_val_X, self.train_val_y)
 
         Path('../plots').mkdir(exist_ok=True)
 
@@ -110,8 +116,7 @@ class Train:
         else:
             tags = [self.vectorisation_method]
 
-        if self.pre_process:
-            tags.append('preprocessed')
+        tags.append(self.sampling_method)
 
         wandb.init(
             project=self.wandb_project,
@@ -185,8 +190,7 @@ def main():
                              ' '.join(TokenizerVectorizer.VECTORISATION_METHODS))
     parser.add_argument('-n_trails', dest='n_trails', default=10, type=int, help='The number of Optuna trials')
     parser.add_argument('-pre-trained', dest='pre_trained', default=None, help='A HuggingFace model for vectorisation')
-    parser.add_argument('-pre-process', dest='pre_process', default=False, help='Run preprocessing steps',
-                        action='store_true')
+    parser.add_argument('-sampling-method', dest='sampling_method', default='None', help='The sampling method to use')
     args = parser.parse_args()
 
     if args.model not in Train.ACCEPTED_MODELS:
@@ -208,7 +212,7 @@ def main():
         wandb_project='JavaDoc-Relevance-Classifier',
         model_name=args.model,
         vectorisation_method=args.vectorizer,
-        pre_process=args.pre_process
+        sampling_method=args.sampling_method
     )
 
     study = optuna.create_study(direction='maximize')

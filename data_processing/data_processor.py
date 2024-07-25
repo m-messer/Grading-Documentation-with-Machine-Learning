@@ -21,33 +21,19 @@ def get_label_info(binary: bool):
     return id2label, label2id, label_count
 
 
-def get_data(data_dir: str, binary: bool = False, pre_process: bool = False):
+def get_data(data_dir: str, binary: bool = False):
     """
     Loads the data from the disk, runs preprocessing steps and converts multiclass data to binary
     :param data_dir: The path of the dataset to load
     :param binary: If the dataset should be converted to binary (classes 2 and 3 become 1)
-    :param pre_process: Oversample the dataset to balance the clases
     :return: The preprocessed dataset ready for model training
     """
     data = Dataset.load_from_disk(data_dir)
-
-    if pre_process:
-        data = __over_sample(data)
 
     if binary:
         data = data.map(__convert_to_binary)
 
     return data
-
-
-def __over_sample(original_dataset):
-    class_0_data = original_dataset.filter(lambda row: row['label'] == 0)
-    class_1_data = original_dataset.filter(lambda row: row['label'] == 1)
-    class_2_data = original_dataset.filter(lambda row: row['label'] == 2)
-    class_3_data = original_dataset.filter(lambda row: row['label'] == 3)
-
-    return interleave_datasets([class_0_data, class_1_data, class_2_data, class_3_data],
-                               seed=100, stopping_strategy='all_exhausted')
 
 
 def __convert_to_binary(row):
@@ -58,5 +44,4 @@ def __convert_to_binary(row):
 
 
 if __name__ == '__main__':
-    raw_df = get_data(data_dir='../data/code_search_net_relevance.hf', pre_process=False).to_csv('../data/raw.csv')
-    proc_df = get_data(data_dir='../data/code_search_net_relevance.hf', pre_process=True).to_csv('../data/proc.csv')
+    raw_df = get_data(data_dir='../data/code_search_net_relevance.hf').to_csv('../data/raw.csv')

@@ -21,20 +21,19 @@ class TokenizerVectorizer:
     """
     VECTORISATION_METHODS = ['pre-trained', 'BoW', 'TfIdf']
 
-    def __init__(self, vectorization_method, data_dir, binary=False, pre_trained_model=None, pre_process=False):
+    def __init__(self, vectorization_method, data_dir, binary=False, pre_trained_model=None):
         """
         The constructor to state what parameters should be used in the tokenizer and vectorizer
         :param vectorization_method: Either 'pre-trained', 'BoW', or 'TfIdf'
         :param data_dir: The path where the raw data is stored
         :param binary: If the raw data should be processed to binary
         :param pre_trained_model: The pre-trained model to use for vectorization, None if using other method
-        :param pre_process: If the raw data should be preprocessed
         """
         if vectorization_method is None:
             message = "Please supply a vectorisation method from:" + ' '.join(self.VECTORISATION_METHODS)
             raise MissingParameterError(message)
 
-        self.data = get_data(data_dir, binary, pre_process)
+        self.data = get_data(data_dir, binary)
 
         self.vectorizer_method = vectorization_method
 
