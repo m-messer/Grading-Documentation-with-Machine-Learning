@@ -218,6 +218,8 @@ def main():
     study = optuna.create_study(direction='maximize')
     study.optimize(train.objective, n_trials=args.n_trails)
 
+    wandb.finish()
+
 
 if __name__ == '__main__':
     main()
