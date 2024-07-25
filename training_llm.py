@@ -129,8 +129,7 @@ class Train:
                 eval_dataset=validation_data,
                 tokenizer=self.tokenizer_vectorizer.tokenizer,
                 data_collator=self.tokenizer_vectorizer.data_collator,
-                compute_metrics=compute_metrics,
-                max_size=2048
+                compute_metrics=compute_metrics
             )
 
             self.trainer.train()
