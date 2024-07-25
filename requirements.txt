@@ -12,6 +12,5 @@ accelerate
 optuna
 peft
 openai
-function_parser
 sentencepiece
 imbalanced-learn
