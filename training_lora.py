@@ -3,8 +3,10 @@ import itertools
 import warnings
 from pathlib import Path
 
+import pandas as pd
 import optuna
 from matplotlib import pyplot as plt
+from sampling import sample_data
 
 from data_processing.data_processor import get_label_info
 from metrics import compute_metrics
@@ -22,7 +24,7 @@ class Train:
     """
     The class used for fine-tuning existing large languge models, with LoRA
     """
-    def __init__(self, data_dir, wandb_project, pre_trained_model, pre_process=False,
+    def __init__(self, data_dir, wandb_project, pre_trained_model, sampling_method='None',
                  binary=False, folds=10):
         """
         The constructor used to setup the HuggingFace trainer and Weights and Biases for logging.
@@ -30,7 +32,7 @@ class Train:
         :param data_dir: The path of the dataset to use for training and testing
         :param wandb_project: The weights and biases project to log results to
         :param pre_trained_model: The HuggingFace model name
-        :param pre_process: If the data should be pre-processed before training
+        :param sampling_method: Which sampling method to use when training
         :param binary: If the data should be converted to binary before training
         :param folds: The number of folds in cross-validation (default 10).
         """
@@ -45,22 +47,24 @@ class Train:
         self.wandb_project = wandb_project
         self.folds = folds
         self.pre_trained_model = pre_trained_model
-        self.pre_process = pre_process
+        self.sampling_method = sampling_method
 
         self.tokenizer_vectorizer = TokenizerVectorizer(vectorization_method='pre-trained', data_dir=data_dir,
-                                                        binary=binary, pre_trained_model=pre_trained_model,
-                                                        pre_process=pre_process)
+                                                        binary=binary, pre_trained_model=pre_trained_model)
 
         self.data = self.tokenizer_vectorizer.get_pre_trained_tokenized_data()
 
         self.train_test_data = self.data.train_test_split(test_size=0.2)
 
+        self.train_val_X = pd.DataFrame(self.tokenizer_vectorizer.get_embeddings(self.train_test_data['train']))
+        self.train_val_y = pd.DataFrame(self.train_test_data['train']['label'], columns=['label'])
+
+        self.train_val_X, self.train_val_y = sample_data(self.train_val_X, self.train_val_y, self.sampling_method)
+
         Path('plots').mkdir(exist_ok=True)
 
         sns.countplot(self.train_test_data['train'].to_pandas(), x='label')
         plt.savefig('plots/train_data.pdf')
-        sns.countplot(self.train_test_data['test'].to_pandas(), x='label')
-        plt.savefig('plots/test_data.pdf')
 
         self.id2label, self.label2id, label_count = get_label_info(binary=binary)
 
@@ -107,10 +111,7 @@ class Train:
         config = dict(trial.params)
         config['trial.number'] = trial.number
 
-        if self.pre_process:
-            tags = ['preprocessed', 'no custom weights', 'rerun']
-        else:
-            tags = None
+        tags = [self.sampling_method]
 
         wandb.init(
             project=self.wandb_project,
@@ -141,8 +142,14 @@ class Train:
         splits = folds.split(np.zeros(self.train_test_data['train'].num_rows), self.train_test_data['train']['label'])
 
         for train_idxs, val_idxs in splits:
-            train_data = self.train_test_data['train'].select(train_idxs)
-            validation_data = self.train_test_data['train'].select(val_idxs)
+            train_X = self.train_val_X.iloc[train_idxs]
+            validation_X = self.train_val_X.iloc[val_idxs]
+
+            train_y = self.train_val_y.iloc[train_idxs]['label']
+            validation_y = self.train_val_y.iloc[val_idxs]['label']
+
+            train_data = pd.concat([train_X, train_y], axis=1)
+            validation_data = pd.concat([validation_X, validation_y], axis=1)
 
             self.trainer = Trainer(
                 model=self.lora_model,
@@ -190,8 +197,7 @@ def main():
     parser.add_argument('-n_trails', dest='n_trails', default=10, type=int, help='The number of Optuna trials')
     parser.add_argument('-pre-trained', dest='pre_trained',
                         help='A HuggingFace model for vectorisation and fine-tuning')
-    parser.add_argument('-pre-process', dest='pre_process', default=False, help='Run preprocessing steps',
-                        action='store_true')
+    parser.add_argument('-sampling-method', dest='sampling_method', default='None', help='The sampling method to use')
     args = parser.parse_args()
 
     if args.pre_trained is None:
@@ -202,8 +208,8 @@ def main():
         pre_trained_model=args.pre_trained,
         data_dir='data/code_search_net_relevance.hf',
         binary=False,
-        wandb_project='JavaDoc-Relevance-Classifier',
-        pre_process=args.pre_process,
+        wandb_project='JavaDoc-Relevance-Classifier-Journal-CodeSearchNet',
+        sampling_method=args.sampling_method
     )
 
     study = optuna.create_study(direction='maximize')
