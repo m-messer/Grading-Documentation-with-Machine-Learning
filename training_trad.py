@@ -17,7 +17,7 @@ from sklearn.svm import SVC
 
 import wandb
 from metrics import compute_metrics_trad, format_metrics
-from sampling import sample_data
+from sampling import sample_data, VALID_SAMPLING_VALUES
 from tokeniser_vectorizer import TokenizerVectorizer
 
 
@@ -201,6 +201,10 @@ def main():
 
     if args.vectorizer == 'pre-trained' and args.pre_trained is None:
         print("Provided a pre-trained HuggingFace model for vectorisation")
+        return
+
+    if args.sampling_method not in VALID_SAMPLING_VALUES:
+        print('Select a sampling method from: ' + ' '.join(VALID_SAMPLING_VALUES))
         return
 
     train = Train(
