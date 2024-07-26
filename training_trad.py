@@ -25,7 +25,7 @@ class Train:
     """
     The class used for training using traditional approaches
     """
-    ACCEPTED_MODELS = ['LogisticRegression', 'Bernolli', 'KNeighbours', 'DecisionTree', 'RandomForest', 'SVC']
+    ACCEPTED_MODELS = ['LogisticRegression', 'Bernoulli', 'KNeighbours', 'DecisionTree', 'RandomForest', 'SVC']
 
     def __init__(self, data_dir, wandb_project, model_name, vectorisation_method, pre_trained_model=None,
                  binary=False, folds=10, sampling_method='None'):
@@ -33,7 +33,7 @@ class Train:
         Sets up the training loop, and Weights and Biases logging.
         :param data_dir: The path of the dataset to use for training and testing
         :param wandb_project: The weights and biases project to log results to
-        :param model_name: The model name from: 'LogisticRegression', 'Bernolli', 'KNeighbours', 'DecisionTree',
+        :param model_name: The model name from: 'LogisticRegression', 'Bernoulli', 'KNeighbours', 'DecisionTree',
         'RandomForest'
         :param vectorisation_method: The vectorisation method to be used: ['pre-trained', 'BoW', 'TfIdf']
         :param pre_trained_model: If pre-trained vectorisation is used, the HuggingFace model
@@ -63,7 +63,9 @@ class Train:
         else:
             self.train_test_data = self.tokenizer_vectorizer.data.train_test_split(test_size=0.2)
 
-        self.train_val_X = pd.DataFrame(self.tokenizer_vectorizer.get_embeddings(self.train_test_data['train']))
+        embeddings, _ = self.tokenizer_vectorizer.get_embeddings(self.train_test_data['train'])
+
+        self.train_val_X = pd.DataFrame(embeddings)
         self.train_val_y = pd.DataFrame(self.train_test_data['train']['label'], columns=['label'])
 
         self.train_val_X, self.train_val_y = sample_data(self.train_val_X, self.train_val_y, self.sampling_method)
@@ -86,7 +88,7 @@ class Train:
         :param trial: The optuna trial used for hyperparamter tuning.
         :return: None
         """
-        if self.model_name == 'Bernolli':
+        if self.model_name == 'Bernoulli':
             smoothing = trial.suggest_float('smoothing', 0, 1)
             self.model = BernoulliNB(alpha=smoothing)
         elif self.model_name == 'DecisionTree':
@@ -155,7 +157,7 @@ class Train:
        Generates metric results from a withheld test set and the models predictions
        :return: The test accuracy
        """
-        X = self.tokenizer_vectorizer.get_embeddings(self.train_test_data['test'])
+        X, _ = self.tokenizer_vectorizer.get_embeddings(self.train_test_data['test'])
         y = self.train_test_data['test']['label']
 
         metrics = compute_metrics_trad(self.model.predict(X),
