@@ -73,6 +73,7 @@ class Train:
         sns.countplot(self.train_test_data['train'].to_pandas(), x='label')
         plt.savefig('plots/train_data.pdf')
 
+        # TODO: FIX THIS WHEN LOADING MENGARIE - WRONG LABELS
         self.id2label, self.label2id, label_count = get_label_info(binary=binary)
 
         self.model = AutoModelForSequenceClassification.from_pretrained(pre_trained_model, num_labels=label_count,
