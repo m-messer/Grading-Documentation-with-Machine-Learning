@@ -123,7 +123,7 @@ class Train:
         self.lora_model = get_peft_model(self.model, lora_config)
 
         self.training_arguments = TrainingArguments(
-            output_dir='../huggingface_models',
+            output_dir='huggingface_models',
             learning_rate=learning_rate,
             per_device_train_batch_size=batch_size,
             per_device_eval_batch_size=batch_size,
