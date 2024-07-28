@@ -5,17 +5,17 @@ import optuna
 import pandas as pd
 from matplotlib import pyplot as plt
 from sampling import sample_data, VALID_SAMPLING_VALUES
+from datasets import Dataset
 from data_processing.data_processor import get_label_info
 from metrics import compute_metrics
 from tokeniser_vectorizer import TokenizerVectorizer
-from transformers import Trainer, TrainingArguments, AutoModelForSequenceClassification, set_seed
+from transformers import Trainer, TrainingArguments, AutoModelForSequenceClassification, set_seed, DefaultDataCollator, TrainerCallback
 from torch import cuda
 import wandb
 from sklearn.model_selection import StratifiedKFold
 import numpy as np
 import seaborn as sns
 import torch
-
 
 class Train:
     """
@@ -52,12 +52,23 @@ class Train:
 
         self.train_test_data = self.data.train_test_split(test_size=0.2)
 
-        self.train_val_X = pd.DataFrame(self.tokenizer_vectorizer.get_embeddings(self.train_test_data['train']))
-        self.train_val_y = pd.DataFrame(self.train_test_data['train']['label'], columns=['label'])
+        train_val_X = pd.DataFrame(columns=['input_ids', 'attention_mask', 'token_type_ids'])
+        train_val_X['input_ids'] = self.train_test_data['train']['input_ids']
+        train_val_X['attention_mask'] = self.train_test_data['train']['attention_mask']
+        train_val_X['token_type_ids'] = self.train_test_data['train']['token_type_ids']
+        train_val_y = self.train_test_data['train']['label']
 
-        self.train_val_X, self.train_val_y = sample_data(self.train_val_X, self.train_val_y, self.sampling_method)
+        train_val_X, train_val_y = sample_data(train_val_X, train_val_y, self.sampling_method)
 
-        Path('../plots').mkdir(exist_ok=True)
+
+        self.train_test_data['train'] = Dataset.from_dict({
+            'input_ids': train_val_X['input_ids'],
+            'attention_mask': train_val_X['attention_mask'],
+            'token_type_ids': train_val_X['token_type_ids'],
+            'label': train_val_y
+        })
+
+        Path('plots').mkdir(exist_ok=True)
 
         sns.countplot(self.train_test_data['train'].to_pandas(), x='label')
         plt.savefig('plots/train_data.pdf')
@@ -94,7 +105,7 @@ class Train:
         epochs = trial.suggest_categorical('epochs', [10, 50, 100])
 
         self.training_arguments = TrainingArguments(
-            output_dir='../huggingface_models',
+            output_dir='huggingface_models',
             learning_rate=learning_rate,
             per_device_train_batch_size=batch_size,
             per_device_eval_batch_size=batch_size,
@@ -113,26 +124,22 @@ class Train:
         splits = folds.split(np.zeros(self.train_test_data['train'].num_rows), self.train_test_data['train']['label'])
 
         for train_idxs, val_idxs in splits:
-            train_X = self.train_val_X.iloc[train_idxs]
-            validation_X = self.train_val_X.iloc[val_idxs]
-
-            train_y = self.train_val_y.iloc[train_idxs]['label']
-            validation_y = self.train_val_y.iloc[val_idxs]['label']
-
-            train_data = pd.concat([train_X, train_y], axis=1)
-            validation_data = pd.concat([validation_X, validation_y], axis=1)
+            train_data = self.train_test_data['train'].select(train_idxs)
+            validation_data = self.train_test_data['train'].select(val_idxs)
 
             self.trainer = Trainer(
                 model=self.model,
                 args=self.training_arguments,
                 train_dataset=train_data,
                 eval_dataset=validation_data,
+                compute_metrics=compute_metrics,
                 tokenizer=self.tokenizer_vectorizer.tokenizer,
                 data_collator=self.tokenizer_vectorizer.data_collator,
-                compute_metrics=compute_metrics
             )
 
             self.trainer.train()
+
+            break
 
     def evaluate(self):
         """
@@ -193,6 +200,8 @@ def main():
 
     study = optuna.create_study(direction='maximize')
     study.optimize(train.objective, n_trials=args.n_trails)
+
+    wandb.finish()
 
 
 if __name__ == '__main__':
