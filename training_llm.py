@@ -138,9 +138,6 @@ class Train:
             )
 
             self.trainer.train()
-
-            break
-
     def evaluate(self):
         """
         Generates metric results from a withheld test set and the fine-tuned models predictions
