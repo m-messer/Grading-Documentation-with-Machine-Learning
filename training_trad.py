@@ -63,7 +63,7 @@ class Train:
         else:
             self.train_test_data = self.tokenizer_vectorizer.data.train_test_split(test_size=0.2)
 
-        embeddings, _ = self.tokenizer_vectorizer.get_embeddings(self.train_test_data['train'])
+        embeddings = self.tokenizer_vectorizer.get_embeddings(self.train_test_data['train'])
 
         self.train_val_X = pd.DataFrame(embeddings)
         self.train_val_y = pd.DataFrame(self.train_test_data['train']['label'], columns=['label'])
@@ -157,7 +157,7 @@ class Train:
        Generates metric results from a withheld test set and the models predictions
        :return: The test accuracy
        """
-        X, _ = self.tokenizer_vectorizer.get_embeddings(self.train_test_data['test'])
+        X = self.tokenizer_vectorizer.get_embeddings(self.train_test_data['test'])
         y = self.train_test_data['test']['label']
 
         metrics = compute_metrics_trad(self.model.predict(X),
