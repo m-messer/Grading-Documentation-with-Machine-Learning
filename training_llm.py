@@ -55,7 +55,10 @@ class Train:
         train_val_X = pd.DataFrame(columns=['input_ids', 'attention_mask', 'token_type_ids'])
         train_val_X['input_ids'] = self.train_test_data['train']['input_ids']
         train_val_X['attention_mask'] = self.train_test_data['train']['attention_mask']
-        train_val_X['token_type_ids'] = self.train_test_data['train']['token_type_ids']
+
+        if 'token_type_ids' in self.train_test_data['train'].column_names:
+            train_val_X['token_type_ids'] = self.train_test_data['train']['token_type_ids']
+
         train_val_y = self.train_test_data['train']['label']
 
         train_val_X, train_val_y = sample_data(train_val_X, train_val_y, self.sampling_method)
