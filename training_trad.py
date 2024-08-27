@@ -128,7 +128,7 @@ class Train:
 
         folds = StratifiedKFold(n_splits=self.folds)
 
-        splits = folds.split(np.zeros(self.train_val_X.shape[0]), self.train_val_y)
+        splits = folds.split(np.zeros(self.train_test_data['train'].num_rows), self.train_test_data['train']['label'])
 
         split_count = 0
         for train_idxs, val_idxs in splits:
