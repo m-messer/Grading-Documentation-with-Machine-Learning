@@ -207,7 +207,7 @@ def main():
         pre_trained_model=args.pre_trained,
         data_dir='data/code_search_net_relevance.hf',
         binary=False,
-        wandb_project='JavaDoc-Relevance-Classifier-Journal-CodeSearchNet',
+        wandb_project='JavaDoc-Relevance-Classifier',
         model_name=args.model,
         vectorisation_method=args.vectorizer,
         sampling_method=args.sampling_method
