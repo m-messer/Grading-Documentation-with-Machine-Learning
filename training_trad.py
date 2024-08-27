@@ -7,6 +7,7 @@ import matplotlib.pyplot as plt
 import numpy as np
 import optuna
 import seaborn as sns
+from imblearn.over_sampling import RandomOverSampler, SMOTE
 from sklearn.ensemble import RandomForestClassifier
 from sklearn.linear_model import LogisticRegression
 from sklearn.model_selection import StratifiedKFold
@@ -17,7 +18,6 @@ from sklearn.svm import SVC
 
 import wandb
 from metrics import compute_metrics_trad, format_metrics
-from sampling import sample_data
 from tokeniser_vectorizer import TokenizerVectorizer
 
 
@@ -66,7 +66,12 @@ class Train:
         self.train_val_X = pd.DataFrame(self.tokenizer_vectorizer.get_embeddings(self.train_test_data['train']))
         self.train_val_y = pd.DataFrame(self.train_test_data['train']['label'], columns=['label'])
 
-        self.train_val_X, self.train_val_y = sample_data(self.train_val_X, self.train_val_y, self.sampling_method)
+        if sampling_method == 'RandomOverSample':
+            ros = RandomOverSampler(random_state=0)
+            self.train_val_X, self.train_val_y = ros.fit_resample(self.train_val_X, self.train_val_y)
+        elif sampling_method == 'SMOTE':
+            smote = SMOTE(random_state=0)
+            self.train_val_X, self.train_val_y = smote.fit_resample(self.train_val_X, self.train_val_y)
 
         Path('../plots').mkdir(exist_ok=True)
 
