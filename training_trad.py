@@ -191,7 +191,6 @@ def main():
     parser.add_argument('-n_trails', dest='n_trails', default=10, type=int, help='The number of Optuna trials')
     parser.add_argument('-pre-trained', dest='pre_trained', default=None, help='A HuggingFace model for vectorisation')
     parser.add_argument('-sampling-method', dest='sampling_method', default='None', help='The sampling method to use')
-    parser.add_argument('-dataset', dest='dataset', default='CodeSearchNet', help='The dataset to use for training and evaluation')
     args = parser.parse_args()
 
     if args.model not in Train.ACCEPTED_MODELS:
@@ -210,21 +209,11 @@ def main():
         print('Select a sampling method from: ' + ' '.join(VALID_SAMPLING_VALUES))
         return
 
-    if args.dataset == 'CodeSearchNet':
-        data_dir = 'data/code_search_net_relevance.hf'
-        wandb_project = 'JavaDoc-Relevance-Classifier-Journal-CodeSearchNet'
-    elif args.dataset == 'Menagerie':
-        data_dir = 'data/code_search_net_relevance.hf'
-        wandb_project = 'JavaDoc-Relevance-Classifier-Journal-Menagerie'
-    else:
-        print('Select a dataset from: ' + ' '.join(['CodeSearchNet', 'Menagerie']))
-        return
-
     train = Train(
         pre_trained_model=args.pre_trained,
-        data_dir=data_dir,
+        data_dir='data/code_search_net_relevance.hf',
         binary=False,
-        wandb_project=wandb_project,
+        wandb_project='JavaDoc-Relevance-Classifier-Journal-CodeSearchNet',
         model_name=args.model,
         vectorisation_method=args.vectorizer,
         sampling_method=args.sampling_method

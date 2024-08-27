@@ -1,4 +1,4 @@
-from datasets import Dataset
+from datasets import Dataset, interleave_datasets
 
 
 def get_label_info(binary: bool):
@@ -44,5 +44,4 @@ def __convert_to_binary(row):
 
 
 if __name__ == '__main__':
-    csn_ds = get_data(data_dir='../data/code_search_net_relevance.hf')
-    m_df = get_data(data_dir='../data/menagerie.hf')
+    raw_df = get_data(data_dir='../data/code_search_net_relevance.hf').to_csv('../data/raw.csv')
