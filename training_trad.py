@@ -2,7 +2,6 @@ import argparse
 from pathlib import Path
 from random import seed
 
-import pandas as pd
 import matplotlib.pyplot as plt
 import numpy as np
 import optuna
@@ -61,13 +60,12 @@ class Train:
         else:
             self.train_test_data = self.tokenizer_vectorizer.data.train_test_split(test_size=0.2)
 
-        self.train_val_X = pd.DataFrame(self.tokenizer_vectorizer.get_embeddings(self.train_test_data['train']))
-        self.train_val_y = pd.DataFrame(self.train_test_data['train']['label'], columns=['label'])
-
         Path('../plots').mkdir(exist_ok=True)
 
-        sns.countplot(self.train_val_y, x='label', color=(187 / 255, 187 / 255, 187 / 255))
+        sns.countplot(self.train_test_data['train'].to_pandas(), x='label', color=(187 / 255, 187 / 255, 187 / 255))
         plt.savefig('plots/train_data.pdf')
+        sns.countplot(self.train_test_data['test'].to_pandas(), x='label', color=(187 / 255, 187 / 255, 187 / 255))
+        plt.savefig('plots/test_data.pdf')
 
         self.model = None
 
@@ -130,16 +128,17 @@ class Train:
             split_count += 1
             wandb.log({'split': split_count})
 
-            train_X = self.train_val_X.iloc[train_idxs]
-            validation_X = self.train_val_X.iloc[val_idxs]
+            train_data = self.train_test_data['train'].select(train_idxs)
+            validation_data = self.train_test_data['train'].select(val_idxs)
 
-            train_y = self.train_val_y.iloc[train_idxs]['label']
+            X_train = self.tokenizer_vectorizer.get_embeddings(train_data)
+            y = train_data['label']
 
-            self.model.fit(train_X, train_y)
+            self.model.fit(X_train, y)
 
-            metrics = compute_metrics_trad(self.model.predict(validation_X),
-                                           self.model.predict_proba(validation_X),
-                                           list(self.train_val_y.iloc[val_idxs]['label']))
+            X_val = self.tokenizer_vectorizer.get_embeddings(validation_data)
+            metrics = compute_metrics_trad(self.model.predict(X_val),
+                                           self.model.predict_proba(X_val), validation_data['label'])
 
             eval_results_formatted = format_metrics(metrics, 'eval')
 
@@ -149,7 +148,7 @@ class Train:
 
     def evaluate(self):
         """
-       Generates metric results from a withheld test set and the models predictions
+       Generates metric results from a withheld test set and the fine-tuned models predictions
        :return: The test accuracy
        """
         X = self.tokenizer_vectorizer.get_embeddings(self.train_test_data['test'])
@@ -203,7 +202,7 @@ def main():
 
     train = Train(
         pre_trained_model=args.pre_trained,
-        data_dir='data/code_search_net_relevance.hf',
+        data_dir='../data/code_search_net_relevance.hf',
         binary=False,
         wandb_project='JavaDoc-Relevance-Classifier',
         model_name=args.model,
