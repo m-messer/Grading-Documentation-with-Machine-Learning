@@ -91,6 +91,8 @@ class TokenizerVectorizer:
         """
 
         embeddings = []
+        attention_mask = []
+
         for row in data:
             # Get first element of the tensor to get the 2D array of the embeddings
             embed = self.vectorizer(torch.tensor(row['input_ids'])[None, :])[0][0].detach().numpy()
@@ -99,9 +101,12 @@ class TokenizerVectorizer:
 
             means = [np.mean(token_vector) for token_vector in pad]
 
-            embeddings.append(means)
+            mask = [1 if i != 0 else 0 for i in means]
 
-        return embeddings
+            embeddings.append(means)
+            attention_mask.append(mask)
+
+        return embeddings, attention_mask
 
 
 if __name__ == "__main__":
