@@ -9,7 +9,7 @@ from datasets import Dataset
 from data_processing.data_processor import get_label_info
 from metrics import compute_metrics
 from tokeniser_vectorizer import TokenizerVectorizer
-from transformers import Trainer, TrainingArguments, AutoModelForSequenceClassification, set_seed
+from transformers import Trainer, TrainingArguments, AutoModelForSequenceClassification, set_seed, DefaultDataCollator, TrainerCallback
 from torch import cuda
 import wandb
 from sklearn.model_selection import StratifiedKFold
@@ -182,10 +182,6 @@ def main():
 
     if args.sampling_method not in VALID_SAMPLING_VALUES:
         print('Select a sampling method from: ' + ' '.join(VALID_SAMPLING_VALUES))
-        return
-
-    if args.sampling_method != 'RandomOverSample':
-        print("SMOTE AND ADSYN are not implemented for LLMs")
         return
 
     train = Train(
