@@ -75,12 +75,12 @@ class TokenizerVectorizer:
         """
         Get the vectorised embeddings for the dataset, using the method selected in the constructor
         :param data: The data to be vectorised
-        :return: The embeddings from vectorisation process, the attention mask (or None if no attention mask)
+        :return: The embeddings from vectorisation process
         """
         if self.vectorizer_method == 'pre-trained':
-            return  self.__get_embeddings_pre_trained(data)
+            return self.__get_embeddings_pre_trained(data)
         else:
-            return self.vectorizer.transform(data['text']).toarray(), None
+            return self.vectorizer.transform(data['text']).toarray()
 
     def __get_embeddings_pre_trained(self, data):
         """
@@ -91,7 +91,6 @@ class TokenizerVectorizer:
         """
 
         embeddings = []
-        attention_mask = []
 
         for row in data:
             # Get first element of the tensor to get the 2D array of the embeddings
@@ -101,15 +100,12 @@ class TokenizerVectorizer:
 
             means = [np.mean(token_vector) for token_vector in pad]
 
-            mask = [1 if i != 0 else 0 for i in means]
-
             embeddings.append(means)
-            attention_mask.append(mask)
 
-        return embeddings, attention_mask
+        return embeddings
 
 
 if __name__ == "__main__":
     data_curator = TokenizerVectorizer(vectorization_method='TfIdf', pre_trained_model='microsoft/codebert-base',
-                                       data_dir='data/code_search_net_relevance.hf')
+                                       data_dir='../data/code_search_net_relevance.hf')
 
