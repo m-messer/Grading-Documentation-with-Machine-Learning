@@ -4,7 +4,7 @@ from pathlib import Path
 import optuna
 import pandas as pd
 from matplotlib import pyplot as plt
-from sampling import sample_data, VALID_SAMPLING_VALUES
+from sampling import sample_data
 from data_processing.data_processor import get_label_info
 from metrics import compute_metrics
 from tokeniser_vectorizer import TokenizerVectorizer
@@ -174,10 +174,6 @@ def main():
 
     if args.pre_trained is None:
         print("Please supply a hugging face model to fine tune, using -pre-trained")
-        return
-
-    if args.sampling_method not in VALID_SAMPLING_VALUES:
-        print('Select a sampling method from: ' + ' '.join(VALID_SAMPLING_VALUES))
         return
 
     train = Train(
