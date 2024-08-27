@@ -83,10 +83,6 @@ class Train:
                                                                         id2label=self.id2label, label2id=self.label2id)
 
         self.model.resize_token_embeddings(len(self.tokenizer_vectorizer.tokenizer))
-
-        if self.model.pad_token_id is None:
-            self.model.pad_token_id = self.tokenizer_vectorizer.tokenizer.pad_token_id
-
         device = "cuda" if cuda.is_available() else "cpu"
         self.model.to(device)
 
