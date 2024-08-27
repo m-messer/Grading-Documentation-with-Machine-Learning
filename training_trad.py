@@ -70,7 +70,7 @@ class Train:
 
         self.train_val_X, self.train_val_y = sample_data(self.train_val_X, self.train_val_y, self.sampling_method)
 
-        Path('plots').mkdir(exist_ok=True)
+        Path('../plots').mkdir(exist_ok=True)
 
         sns.countplot(self.train_val_y, x='label', color=(187 / 255, 187 / 255, 187 / 255))
         plt.savefig('plots/train_data.pdf')
