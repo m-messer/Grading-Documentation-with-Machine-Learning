@@ -56,12 +56,12 @@ def compute_metrics_trad(predictions, prediction_prob, labels):
     recall_micro_res = recall.compute(predictions=predictions, references=labels, average='micro')['recall']
     recall_weighted_res = recall.compute(predictions=predictions, references=labels, average='weighted')[
         'recall']
-    precision_macro_res = precision.compute(predictions=predictions, references=labels, average='macro',
-                                            zero_division=0)['precision']
-    precision_micro_res = precision.compute(predictions=predictions, references=labels, average='micro',
-                                            zero_division=0)['precision']
-    precision_weighted_res = precision.compute(predictions=predictions, references=labels, average='weighted',
-                                               zero_division=0)['precision']
+    precision_macro_res = precision.compute(predictions=predictions, references=labels, average='macro')[
+        'precision']
+    precision_micro_res = precision.compute(predictions=predictions, references=labels, average='micro')[
+        'precision']
+    precision_weighted_res = precision.compute(predictions=predictions, references=labels, average='weighted')[
+        'precision']
 
 
     loss = log_loss(y_true=labels, y_pred=prediction_prob, labels=labels)
