@@ -7,7 +7,7 @@ import matplotlib.pyplot as plt
 import numpy as np
 import optuna
 import seaborn as sns
-from imblearn.over_sampling import RandomOverSampler, SMOTE
+from imblearn.over_sampling import RandomOverSampler
 from sklearn.ensemble import RandomForestClassifier
 from sklearn.linear_model import LogisticRegression
 from sklearn.model_selection import StratifiedKFold
@@ -69,9 +69,6 @@ class Train:
         if sampling_method == 'RandomOverSample':
             ros = RandomOverSampler(random_state=0)
             self.train_val_X, self.train_val_y = ros.fit_resample(self.train_val_X, self.train_val_y)
-        elif sampling_method == 'SMOTE':
-            smote = SMOTE(random_state=0)
-            self.train_val_X, self.train_val_y = smote.fit_resample(self.train_val_X, self.train_val_y)
 
         Path('../plots').mkdir(exist_ok=True)
 
