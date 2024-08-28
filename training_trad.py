@@ -1,4 +1,5 @@
 import argparse
+from copy import deepcopy
 from pathlib import Path
 from random import seed
 
@@ -14,6 +15,8 @@ from sklearn.neighbors import KNeighborsClassifier
 from sklearn.tree import DecisionTreeClassifier
 
 import wandb
+
+import data_processing.data_processor
 from metrics import compute_metrics_trad, format_metrics
 from tokeniser_vectorizer import TokenizerVectorizer
 
@@ -41,8 +44,7 @@ class Train:
 
         seed(100)
 
-        with open('../secrets/wandb_api_key.txt') as f:
-            wandb.login(key=f.read())
+        wandb.login()
 
         self.wandb_project = wandb_project
         self.folds = folds
@@ -52,7 +54,7 @@ class Train:
 
         self.tokenizer_vectorizer = TokenizerVectorizer(vectorization_method=vectorisation_method,
                                                         data_dir=data_dir, binary=binary,
-                                                        pre_trained_model=pre_trained_model, pre_process=pre_process)
+                                                        pre_trained_model=pre_trained_model)
 
         if vectorisation_method == 'pre-trained':
             self.data = self.tokenizer_vectorizer.get_pre_trained_tokenized_data()
@@ -60,12 +62,20 @@ class Train:
         else:
             self.train_test_data = self.tokenizer_vectorizer.data.train_test_split(test_size=0.2)
 
-        Path('../plots').mkdir(exist_ok=True)
+        if pre_process:
+            old_test_class_count = self.train_test_data['test'].to_pandas()['label'].value_counts()
+            print("BEFORE OVERSAMPLE")
 
-        sns.countplot(self.train_test_data['train'].to_pandas(), x='label', color=(187 / 255, 187 / 255, 187 / 255))
-        plt.savefig('plots/train_data.pdf')
-        sns.countplot(self.train_test_data['test'].to_pandas(), x='label', color=(187 / 255, 187 / 255, 187 / 255))
-        plt.savefig('plots/test_data.pdf')
+            print(old_test_class_count)
+            self.train_test_data = data_processing.data_processor.over_sample(self.train_test_data)
+            print('OVER SAMPLE DATA')
+            print(self.train_test_data)
+
+            print(self.train_test_data['test'].to_pandas()['label'].value_counts())
+
+            new_test_class_count = self.train_test_data['test'].to_pandas()['label'].value_counts()
+            print("AFTER OVERSAMPLE")
+            print(new_test_class_count)
 
         self.model = None
 
@@ -200,9 +210,9 @@ def main():
 
     train = Train(
         pre_trained_model=args.pre_trained,
-        data_dir='../data/code_search_net_relevance.hf',
+        data_dir='data/code_search_net_relevance.hf',
         binary=False,
-        wandb_project='JavaDoc-Relevance-Classifier',
+        wandb_project='JavaDoc-Relevance-Classifier-Validation',
         model_name=args.model,
         vectorisation_method=args.vectorizer,
         pre_process=args.pre_process
@@ -210,6 +220,8 @@ def main():
 
     study = optuna.create_study(direction='maximize')
     study.optimize(train.objective, n_trials=args.n_trails)
+
+    wandb.finish()
 
 
 if __name__ == '__main__':
