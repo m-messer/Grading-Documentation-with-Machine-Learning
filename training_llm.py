@@ -2,6 +2,7 @@ import argparse
 from pathlib import Path
 
 import optuna
+from datasets import DatasetDict
 from matplotlib import pyplot as plt
 
 from data_processing.data_processor import get_label_info
@@ -83,7 +84,7 @@ class Train:
         config['trial.number'] = trial.number
 
         if self.pre_process:
-            tags = ['preprocessed', 'no custom weights', 'new_eval']
+            tags = ['preprocessed', 'BEST']
         else:
             tags = None
 
@@ -94,16 +95,16 @@ class Train:
             reinit=True
         )
 
-        learning_rate = trial.suggest_float('learning_rate', 1e-6, 1e-4, log=True)
-        batch_size = trial.suggest_categorical('batch_size', [16, 32])
-        epochs = trial.suggest_categorical('epochs', [10, 50, 100])
+        # learning_rate = trial.suggest_float('learning_rate', 1e-6, 1e-4, log=True)
+        # batch_size = trial.suggest_categorical('batch_size', [16, 32])
+        # epochs = trial.suggest_categorical('epochs', [10, 50, 100])
 
         self.training_arguments = TrainingArguments(
             output_dir='../huggingface_models',
-            learning_rate=learning_rate,
-            per_device_train_batch_size=batch_size,
-            per_device_eval_batch_size=batch_size,
-            num_train_epochs=epochs,
+            learning_rate=0.00001967794017791887,
+            per_device_train_batch_size=16,
+            per_device_eval_batch_size=16,
+            num_train_epochs=10,
             evaluation_strategy="epoch",
             save_strategy="epoch",
             load_best_model_at_end=True,
@@ -131,6 +132,8 @@ class Train:
             )
 
             self.trainer.train()
+
+        self.trainer.save_model('best_model')
 
     def evaluate(self):
         """
