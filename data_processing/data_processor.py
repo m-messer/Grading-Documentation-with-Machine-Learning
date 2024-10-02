@@ -39,15 +39,19 @@ def get_data(data_dir: str, binary: bool = False):
 def over_sample(original_dataset):
     class_0_data = original_dataset['train'].filter(lambda row: row['label'] == 0)
     class_1_data = original_dataset['train'].filter(lambda row: row['label'] == 1)
-    class_2_data = original_dataset['train'].filter(lambda row: row['label'] == 2)
-    class_3_data = original_dataset['train'].filter(lambda row: row['label'] == 3)
+    # class_2_data = original_dataset['train'].filter(lambda row: row['label'] == 2)
+    # class_3_data = original_dataset['train'].filter(lambda row: row['label'] == 3)
 
-    over_sampled_train_data = interleave_datasets([class_0_data, class_1_data, class_2_data, class_3_data],
-                               seed=100, stopping_strategy='all_exhausted')
+    # over_sampled_train_data = interleave_datasets([class_0_data, class_1_data, class_2_data, class_3_data],
+    #                            seed=100, stopping_strategy='all_exhausted')
+    over_sampled_train_data = interleave_datasets([class_0_data, class_1_data],
+                                                  seed=100, stopping_strategy='all_exhausted')
     return DatasetDict({'train': over_sampled_train_data, 'test': original_dataset['test']})
 
 
 def __convert_to_binary(row):
+    if row['label'] in [0, 1]:
+        row['label'] = 0
     if row['label'] in [2, 3]:
         row['label'] = 1
 
