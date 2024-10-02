@@ -1,5 +1,10 @@
 # Grading Documentation with Machine Learning - Training and Data Repository
 
+### Erratum
+In our paper “Grading Documentation with Machine Learning” which appeared in Artificial Intelligence in Education 2025 there is an error in how the data was pre-processed before training our machine learning model, resulting in overfitting models and incorrect metric results.
+We found an error in how we oversampled the data, which resulted in the same labelled data being present in both the training and test dataset. As such our metric scores are incorrect and are significantly lower than previously published. Our best model’s accuracy was previously published as 89%, and all other models’ results are similarly affected. After fixing the error in our code and rerunning our best models experiment with the same hyperparameters and on the same hardware, we found that the correct accuracy was 46% when performing multi-class classification and 62% accurate when performing binary classification.
+
+### Overview
 This repository is for the paper titled "Grading Documentation with Machine Learning", and is formatted as follows:
 
 Directories:

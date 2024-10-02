@@ -2,6 +2,7 @@ import argparse
 from pathlib import Path
 
 import optuna
+from datasets import DatasetDict
 from matplotlib import pyplot as plt
 
 from data_processing.data_processor import get_label_info
@@ -13,6 +14,7 @@ import wandb
 from sklearn.model_selection import StratifiedKFold
 import numpy as np
 import seaborn as sns
+import data_processing.data_processor
 
 
 class Train:
@@ -36,8 +38,7 @@ class Train:
         self.training_arguments = None
         set_seed(100)
 
-        with open('../secrets/wandb_api_key.txt') as f:
-            wandb.login(key=f.read())
+        wandb.login()
 
         self.wandb_project = wandb_project
         self.folds = folds
@@ -45,21 +46,28 @@ class Train:
         self.pre_process = pre_process
 
         self.tokenizer_vectorizer = TokenizerVectorizer(vectorization_method='pre-trained', data_dir=data_dir,
-                                                        binary=binary, pre_trained_model=pre_trained_model,
-                                                        pre_process=pre_process)
+                                                        binary=binary, pre_trained_model=pre_trained_model)
 
         self.data = self.tokenizer_vectorizer.get_pre_trained_tokenized_data()
 
         self.train_test_data = self.data.train_test_split(test_size=0.2)
 
-        Path('../plots').mkdir(exist_ok=True)
+        if pre_process:
+            old_test_class_count = self.train_test_data['test'].to_pandas()['label'].value_counts()
+            print("BEFORE OVERSAMPLE")
 
-        sns.countplot(self.train_test_data['train'].to_pandas(), x='label')
-        plt.savefig('plots/train_data.pdf')
-        sns.countplot(self.train_test_data['test'].to_pandas(), x='label')
-        plt.savefig('plots/test_data.pdf')
+            print(old_test_class_count)
+            self.train_test_data = data_processing.data_processor.over_sample(self.train_test_data)
+            print('OVER SAMPLE DATA')
+            print(self.train_test_data)
 
-        self.id2label, self.label2id, label_count = get_label_info(binary=binary)
+            print(self.train_test_data['test'].to_pandas()['label'].value_counts())
+
+            new_test_class_count = self.train_test_data['test'].to_pandas()['label'].value_counts()
+            print("AFTER OVERSAMPLE")
+            print(new_test_class_count)
+
+            self.id2label, self.label2id, label_count = get_label_info(binary=binary)
 
         self.model = AutoModelForSequenceClassification.from_pretrained(pre_trained_model, num_labels=label_count,
                                                                         id2label=self.id2label, label2id=self.label2id)
@@ -76,7 +84,7 @@ class Train:
         config['trial.number'] = trial.number
 
         if self.pre_process:
-            tags = ['preprocessed', 'no custom weights', 'new_eval']
+            tags = ['preprocessed', 'binary']
         else:
             tags = None
 
@@ -89,7 +97,7 @@ class Train:
 
         learning_rate = trial.suggest_float('learning_rate', 1e-6, 1e-4, log=True)
         batch_size = trial.suggest_categorical('batch_size', [16, 32])
-        epochs = trial.suggest_categorical('epochs', [10, 50, 100])
+        epochs = trial.suggest_categorical('epochs', [10, 50, 75])
 
         self.training_arguments = TrainingArguments(
             output_dir='../huggingface_models',
@@ -124,6 +132,8 @@ class Train:
             )
 
             self.trainer.train()
+
+        self.trainer.save_model('best_model')
 
     def evaluate(self):
         """
@@ -169,14 +179,16 @@ def main():
 
     train = Train(
         pre_trained_model=args.pre_trained,
-        data_dir='../data/code_search_net_relevance.hf',
-        binary=False,
-        wandb_project='JavaDoc-Relevance-Classifier',
+        data_dir='data/code_search_net_relevance.hf',
+        binary=True,
+        wandb_project='JavaDoc-Relevance-Classifier-Validation',
         pre_process=args.pre_process,
     )
 
     study = optuna.create_study(direction='maximize')
     study.optimize(train.objective, n_trials=args.n_trails)
+
+    wandb.finish()
 
 
 if __name__ == '__main__':
