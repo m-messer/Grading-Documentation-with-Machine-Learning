@@ -16,6 +16,7 @@ from sklearn.model_selection import StratifiedKFold
 import numpy as np
 import seaborn as sns
 from peft import LoraConfig, get_peft_model, TaskType
+import data_processing.data_processor
 
 
 class Train:
@@ -39,8 +40,7 @@ class Train:
         self.training_arguments = None
         set_seed(100)
 
-        with open('secrets/wandb_api_key.txt') as f:
-            wandb.login(key=f.read())
+        wandb.login()
 
         self.wandb_project = wandb_project
         self.folds = folds
@@ -48,19 +48,19 @@ class Train:
         self.pre_process = pre_process
 
         self.tokenizer_vectorizer = TokenizerVectorizer(vectorization_method='pre-trained', data_dir=data_dir,
-                                                        binary=binary, pre_trained_model=pre_trained_model,
-                                                        pre_process=pre_process)
+                                                        binary=binary, pre_trained_model=pre_trained_model)
 
         self.data = self.tokenizer_vectorizer.get_pre_trained_tokenized_data()
 
         self.train_test_data = self.data.train_test_split(test_size=0.2)
 
-        Path('plots').mkdir(exist_ok=True)
+        if pre_process:
+            self.data = self.data.class_encode_column("label")
+            self.train_test_data = self.data.train_test_split(test_size=0.2, stratify_by_column='label')
+            print('OVER SAMPLE DATA')
+            print(self.train_test_data)
 
-        sns.countplot(self.train_test_data['train'].to_pandas(), x='label')
-        plt.savefig('plots/train_data.pdf')
-        sns.countplot(self.train_test_data['test'].to_pandas(), x='label')
-        plt.savefig('plots/test_data.pdf')
+            print(self.train_test_data['test'].to_pandas()['label'].value_counts())
 
         self.id2label, self.label2id, label_count = get_label_info(binary=binary)
 
@@ -107,7 +107,7 @@ class Train:
         config['trial.number'] = trial.number
 
         if self.pre_process:
-            tags = ['preprocessed', 'no custom weights', 'rerun']
+            tags = ['preprocessed']
         else:
             tags = None
 
@@ -201,7 +201,7 @@ def main():
         pre_trained_model=args.pre_trained,
         data_dir='data/code_search_net_relevance.hf',
         binary=False,
-        wandb_project='JavaDoc-Relevance-Classifier',
+        wandb_project='JavaDoc-Relevance-Classifier-Renewed',
         pre_process=args.pre_process,
     )
 
