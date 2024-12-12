@@ -16,7 +16,7 @@ from sklearn.tree import DecisionTreeClassifier
 
 import wandb
 
-import data_processing.data_processor
+from data_processing.data_processor import over_sample
 from metrics import compute_metrics_trad, format_metrics
 from tokeniser_vectorizer import TokenizerVectorizer
 
@@ -62,7 +62,11 @@ class Train:
             self.data = self.tokenizer_vectorizer.data
         if pre_process:
             self.data = self.data.class_encode_column("label")
-            self.train_test_data = self.data.train_test_split(test_size=0.2, stratify_by_column='label')
+            self.data.to_csv('data/raw.csv')
+            self.train_test_data = self.data.train_test_split(test_size=0.2)
+            self.train_test_data['train'] = over_sample(self.train_test_data['train'])
+            self.train_test_data['train'].to_csv('data/proc_train.csv')
+            self.train_test_data['test'].to_csv('data/proc_test.csv')
             print('OVER SAMPLE DATA')
             print(self.train_test_data)
 

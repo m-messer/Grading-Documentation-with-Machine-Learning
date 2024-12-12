@@ -16,7 +16,7 @@ from sklearn.model_selection import StratifiedKFold
 import numpy as np
 import seaborn as sns
 from peft import LoraConfig, get_peft_model, TaskType
-import data_processing.data_processor
+from data_processing.data_processor import over_sample
 
 
 class Train:
@@ -56,7 +56,11 @@ class Train:
 
         if pre_process:
             self.data = self.data.class_encode_column("label")
-            self.train_test_data = self.data.train_test_split(test_size=0.2, stratify_by_column='label')
+            self.data.to_csv('data/raw.csv')
+            self.train_test_data = self.data.train_test_split(test_size=0.2)
+            self.train_test_data['train'] = over_sample(self.train_test_data['train'])
+            self.train_test_data['train'].to_csv('data/proc_train.csv')
+            self.train_test_data['test'].to_csv('data/proc_test.csv')
             print('OVER SAMPLE DATA')
             print(self.train_test_data)
 
