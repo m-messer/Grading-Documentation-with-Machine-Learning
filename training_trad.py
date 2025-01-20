@@ -193,6 +193,7 @@ def main():
     parser.add_argument('-pre-trained', dest='pre_trained', default=None, help='A HuggingFace model for vectorisation')
     parser.add_argument('-pre-process', dest='pre_process', default=False, help='Run preprocessing steps',
                         action='store_true')
+    parser.add_argument('-dataset', dest='dataset', default='CodeSearchNet', help='The dataset to use for training and evaluation')
     args = parser.parse_args()
 
     if args.model not in Train.ACCEPTED_MODELS:
@@ -207,11 +208,21 @@ def main():
         print("Provided a pre-trained HuggingFace model for vectorisation")
         return
 
+    if args.dataset == 'CodeSearchNet':
+        data_dir = 'data/code_search_net_relevance.hf'
+        wandb_project = 'JavaDoc-Relevance-Classifier-Renewed'
+    elif args.dataset == 'Menagerie':
+        data_dir = 'data/code_search_net_relevance.hf'
+        wandb_project = 'JavaDoc-Relevance-Classifier-Menagerie'
+    else:
+        print('Select a dataset from: ' + ' '.join(['CodeSearchNet', 'Menagerie']))
+        return
+
     train = Train(
         pre_trained_model=args.pre_trained,
-        data_dir='data/code_search_net_relevance.hf',
+        data_dir=data_dir,
         binary=False,
-        wandb_project='JavaDoc-Relevance-Classifier-Renewed',
+        wandb_project=wandb_project,
         model_name=args.model,
         vectorisation_method=args.vectorizer,
         pre_process=args.pre_process
