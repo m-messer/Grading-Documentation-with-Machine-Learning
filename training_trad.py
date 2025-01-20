@@ -16,7 +16,7 @@ from sklearn.tree import DecisionTreeClassifier
 
 import wandb
 
-import data_processing.data_processor
+from data_processing.data_processor import over_sample
 from metrics import compute_metrics_trad, format_metrics
 from tokeniser_vectorizer import TokenizerVectorizer
 
@@ -58,24 +58,19 @@ class Train:
 
         if vectorisation_method == 'pre-trained':
             self.data = self.tokenizer_vectorizer.get_pre_trained_tokenized_data()
-            self.train_test_data = self.data.train_test_split(test_size=0.2)
         else:
-            self.train_test_data = self.tokenizer_vectorizer.data.train_test_split(test_size=0.2)
-
+            self.data = self.tokenizer_vectorizer.data
         if pre_process:
-            old_test_class_count = self.train_test_data['test'].to_pandas()['label'].value_counts()
-            print("BEFORE OVERSAMPLE")
-
-            print(old_test_class_count)
-            self.train_test_data = data_processing.data_processor.over_sample(self.train_test_data)
+            self.data = self.data.class_encode_column("label")
+            self.data.to_csv('data/raw.csv')
+            self.train_test_data = self.data.train_test_split(test_size=0.2)
+            self.train_test_data['train'] = over_sample(self.train_test_data['train'])
+            self.train_test_data['train'].to_csv('data/proc_train.csv')
+            self.train_test_data['test'].to_csv('data/proc_test.csv')
             print('OVER SAMPLE DATA')
             print(self.train_test_data)
 
             print(self.train_test_data['test'].to_pandas()['label'].value_counts())
-
-            new_test_class_count = self.train_test_data['test'].to_pandas()['label'].value_counts()
-            print("AFTER OVERSAMPLE")
-            print(new_test_class_count)
 
         self.model = None
 
@@ -127,6 +122,7 @@ class Train:
             reinit=True
         )
 
+        # Generates eval dataset using K-Fold Cross Validation
         folds = StratifiedKFold(n_splits=self.folds)
 
         splits = folds.split(np.zeros(self.train_test_data['train'].num_rows), self.train_test_data['train']['label'])
@@ -161,6 +157,9 @@ class Train:
        """
         X = self.tokenizer_vectorizer.get_embeddings(self.train_test_data['test'])
         y = self.train_test_data['test']['label']
+
+        print("Test Data")
+        print(self.train_test_data['test'].to_pandas()['label'].value_counts())
 
         metrics = compute_metrics_trad(self.model.predict(X),
                                        self.model.predict_proba(X), y)
@@ -212,7 +211,7 @@ def main():
         pre_trained_model=args.pre_trained,
         data_dir='data/code_search_net_relevance.hf',
         binary=False,
-        wandb_project='JavaDoc-Relevance-Classifier-Validation',
+        wandb_project='JavaDoc-Relevance-Classifier-Renewed',
         model_name=args.model,
         vectorisation_method=args.vectorizer,
         pre_process=args.pre_process
