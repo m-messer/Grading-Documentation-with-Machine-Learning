@@ -292,3 +292,5 @@ m-messer
 wandb
 
 data/code_search_net_relevance.hf/
+
+data/raw.csv
