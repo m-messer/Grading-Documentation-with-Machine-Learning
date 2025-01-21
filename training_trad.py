@@ -56,6 +56,14 @@ class Train:
                                                         data_dir=data_dir, binary=binary,
                                                         pre_trained_model=pre_trained_model)
 
+        if data_dir == 'data/code_search_net_relevance.hf':
+            dataset_name = 'CodeSearchNet'
+        elif data_dir == 'data/menagerie_unique_pairs.csv':
+            dataset_name = 'Menagerie'
+        else:
+            print('Unknown Dataset')
+            return
+
         if vectorisation_method == 'pre-trained':
             self.data = self.tokenizer_vectorizer.get_pre_trained_tokenized_data()
         else:
@@ -64,7 +72,7 @@ class Train:
             self.data = self.data.class_encode_column("label")
             self.data.to_csv('data/raw.csv')
             self.train_test_data = self.data.train_test_split(test_size=0.2)
-            self.train_test_data['train'] = over_sample(self.train_test_data['train'])
+            self.train_test_data['train'] = over_sample(self.train_test_data['train'], dataset_name, binary)
             self.train_test_data['train'].to_csv('data/proc_train.csv')
             self.train_test_data['test'].to_csv('data/proc_test.csv')
             print('OVER SAMPLE DATA')
@@ -212,7 +220,9 @@ def main():
         data_dir = 'data/code_search_net_relevance.hf'
         wandb_project = 'JavaDoc-Relevance-Classifier-Renewed'
     elif args.dataset == 'Menagerie':
-        data_dir = 'data/code_search_net_relevance.hf'
+        # Data taken from Menagerie and processed for unique docstring/code pairs
+        # Processing in cosine similarity repo
+        data_dir = 'data/menagerie_unique_pairs.csv'
         wandb_project = 'JavaDoc-Relevance-Classifier-Menagerie'
     else:
         print('Select a dataset from: ' + ' '.join(['CodeSearchNet', 'Menagerie']))

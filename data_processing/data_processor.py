@@ -1,10 +1,6 @@
 from datasets import Dataset, interleave_datasets, load_dataset
 
-GRADES = ['F', 'D-', 'D', 'D+', 'C-', 'C', 'C+', 'B-', 'B', 'B+', 'A-', 'A', 'A+', 'A++']
-
-
-def get_label_info(binary: bool):
-    # TODO: Update for Menagerie
+def __get_label_info_code_search_net(binary: bool):
     """
     Gets the ID, label and label count dependant if the model training is binary or multi-class.
     :param binary: If the model training is multiclass or not
@@ -23,6 +19,38 @@ def get_label_info(binary: bool):
 
     return id2label, label2id, label_count
 
+def __get_label_info_menagerie(binary: bool):
+    """
+    Gets the ID, label and label count dependant if the model training is binary or multi-class.
+    :param binary: If the model training is multiclass or not
+    :return: The id2label and label2id dictionaries, as well as the label count.
+    """
+
+    grades = ['F', 'D-', 'D', 'D+', 'C-', 'C', 'C+', 'B-', 'B', 'B+', 'A-', 'A', 'A+', 'A++']
+
+    if binary:
+        id2label = {0: 'fail', 1: 'pass'}
+        label2id = {'fail': 0, 'pass': 1}
+
+        label_count = 2
+    else:
+        id2label = {}
+        label2id = {}
+        for i, grade in enumerate(grades):
+            id2label[i] = grade
+            label2id[grade] = i
+
+        label_count = len(grades)
+
+    return id2label, label2id, label_count
+
+
+def get_label_info(binary, dataset_name):
+    if dataset_name == 'CodeSearchNet':
+        __get_label_info_code_search_net(binary)
+    elif dataset_name =='Menagerie':
+        __get_label_info_menagerie(binary)
+
 
 def __format_str(string):
     for char in ['\r\n', '\r', '\n']:
@@ -32,6 +60,13 @@ def __format_str(string):
 
 def __concat_nl_and_code(data):
     data['text'] = __format_str(data['query'] + '<CODESPLIT>' + data['func_code_string'])
+
+    return data
+
+
+def __map_grades_to_label_multi(data):
+    _, label2id, _ = __get_label_info_menagerie(False)
+    data['label'] = label2id[data['grade']]
 
     return data
 
@@ -49,8 +84,9 @@ def get_data(data_dir: str, binary: bool = False):
     else:
         data = load_dataset("csv", data_files=data_dir)
         data = data['train'].remove_columns(['hash', 'grades', 'grade_count'])
-        data = data.rename_columns({'function': 'func_code_string', 'grade': 'label', 'docstring': 'query'})
+        data = data.rename_columns({'function': 'func_code_string', 'docstring': 'query'})
         data = data.map(__concat_nl_and_code)
+        data = data.map(__map_grades_to_label_multi)
 
     if binary:
         data = data.map(__convert_to_binary)
@@ -61,8 +97,10 @@ def get_data(data_dir: str, binary: bool = False):
 def over_sample_menagerie(original_dataset, binary):
     if not binary:
         filtered_datasets = []
-        for grade in GRADES:
-            temp_dataset = original_dataset.filter(lambda row: row['label'] == grade)
+        _, _, label_count = __get_label_info_menagerie(binary)
+
+        for i in range(label_count):
+            temp_dataset = original_dataset.filter(lambda row: row['label'] == i)
 
             if len(temp_dataset) > 0:
                 filtered_datasets.append(temp_dataset)
