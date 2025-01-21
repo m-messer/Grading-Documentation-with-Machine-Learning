@@ -1,4 +1,4 @@
-from datasets import Dataset, interleave_datasets, DatasetDict
+from datasets import Dataset, interleave_datasets, load_dataset
 
 
 def get_label_info(binary: bool):
@@ -21,6 +21,18 @@ def get_label_info(binary: bool):
     return id2label, label2id, label_count
 
 
+def __format_str(string):
+    for char in ['\r\n', '\r', '\n']:
+        string = string.replace(char, ' ')
+    return string
+
+
+def __concat_nl_and_code(data):
+    data['text'] = __format_str(data['query'] + '<CODESPLIT>' + data['func_code_string'])
+
+    return data
+
+
 def get_data(data_dir: str, binary: bool = False):
     """
     Loads the data from the disk, runs preprocessing steps and converts multiclass data to binary
@@ -28,7 +40,14 @@ def get_data(data_dir: str, binary: bool = False):
     :param binary: If the dataset should be converted to binary (classes 2 and 3 become 1)
     :return: The preprocessed dataset ready for model training
     """
-    data = Dataset.load_from_disk(data_dir)
+
+    if data_dir.endswith('.hf'):
+        data = Dataset.load_from_disk(data_dir)
+    else:
+        data = load_dataset("csv", data_files=data_dir)
+        data = data['train'].remove_columns(['hash', 'grades', 'grade_count'])
+        data = data.rename_columns({'function': 'func_code_string', 'grade': 'label', 'docstring': 'query'})
+        data = data.map(__concat_nl_and_code)
 
     if binary:
         data = data.map(__convert_to_binary)
@@ -37,6 +56,7 @@ def get_data(data_dir: str, binary: bool = False):
 
 
 def over_sample(original_dataset):
+    # TODO: Update to include grades for menagrie or refactor name and create new function?
     class_0_data = original_dataset.filter(lambda row: row['label'] == 0)
     class_1_data = original_dataset.filter(lambda row: row['label'] == 1)
     class_2_data = original_dataset.filter(lambda row: row['label'] == 2)
@@ -59,5 +79,10 @@ def __convert_to_binary(row):
 
 
 if __name__ == '__main__':
-    raw_df = get_data(data_dir='../data/code_search_net_relevance.hf', pre_process=False).to_csv('../data/raw.csv')
-    proc_df = get_data(data_dir='../data/code_search_net_relevance.hf', pre_process=True).to_csv('../data/proc.csv')
+    menagerie_df = get_data(data_dir='../data/menagerie_unique_pairs.csv')
+    print('Menagerie')
+    print(menagerie_df)
+    print(menagerie_df[0])
+    csn_df = get_data(data_dir='../data/code_search_net_relevance.hf')
+    print('CodeSearchNet')
+    print(csn_df)
