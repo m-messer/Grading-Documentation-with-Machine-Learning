@@ -4,6 +4,7 @@ import torch
 import numpy as np
 
 from data_processing.data_processor import get_data
+from tqdm import tqdm
 
 
 class MissingParameterError(Exception):
@@ -59,6 +60,7 @@ class TokenizerVectorizer:
 
         self.max_size = None
 
+
     def __get_tokens(self, row):
         return self.tokenizer(row['text'], truncation=True, padding=True)
 
@@ -77,6 +79,7 @@ class TokenizerVectorizer:
         :param data: The data to be vectorised
         :return: The embeddings from vectorisation process
         """
+        print('Generating Embeddings')
         if self.vectorizer_method == 'pre-trained':
             return self.__get_embeddings_pre_trained(data)
         else:
@@ -92,7 +95,7 @@ class TokenizerVectorizer:
 
         embeddings = []
 
-        for row in data:
+        for row in tqdm(data):
             # Get first element of the tensor to get the 2D array of the embeddings
             embed = self.vectorizer(torch.tensor(row['input_ids'])[None, :])[0][0].detach().numpy()
             pad_size = self.max_size - embed.shape[0]
@@ -108,4 +111,3 @@ class TokenizerVectorizer:
 if __name__ == "__main__":
     data_curator = TokenizerVectorizer(vectorization_method='TfIdf', pre_trained_model='microsoft/codebert-base',
                                        data_dir='../data/code_search_net_relevance.hf')
-

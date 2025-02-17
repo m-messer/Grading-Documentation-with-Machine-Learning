@@ -44,6 +44,7 @@ class Train:
 
         seed(100)
 
+        print('Setup WandB')
         wandb.login()
 
         self.wandb_project = wandb_project
@@ -60,15 +61,22 @@ class Train:
             dataset_name = 'CodeSearchNet'
         elif data_dir == 'data/menagerie_unique_pairs.csv':
             dataset_name = 'Menagerie'
+        elif data_dir == 'data/menagerie_unique_pairs_truncated.csv':
+            dataset_name = 'Menagerie'
         else:
             print('Unknown Dataset')
-            return
+            raise FileNotFoundError('Unknown Dataset')
 
         if vectorisation_method == 'pre-trained':
             self.data = self.tokenizer_vectorizer.get_pre_trained_tokenized_data()
         else:
             self.data = self.tokenizer_vectorizer.data
+
+        embeddings = self.tokenizer_vectorizer.get_embeddings(self.data)
+        self.data = self.data.add_column('embed', embeddings)
+
         if pre_process:
+            print('Pre-Processing')
             self.data = self.data.class_encode_column("label")
             self.data.to_csv('data/raw.csv')
             self.train_test_data = self.data.train_test_split(test_size=0.2)
@@ -78,7 +86,10 @@ class Train:
             print('OVER SAMPLE DATA')
             print(self.train_test_data)
 
-            print(self.train_test_data['test'].to_pandas()['label'].value_counts())
+            if dataset_name == 'Menagerie':
+                print(self.train_test_data['test'].to_pandas()['grade'].value_counts())
+            else:
+                print(self.train_test_data['test'].to_pandas()['label'].value_counts())
 
         self.model = None
 
@@ -93,6 +104,9 @@ class Train:
         :param trial: The optuna trial used for hyperparamter tuning.
         :return: None
         """
+
+        print('Training with cross validation')
+
         if self.model_name == 'Bernolli':
             smoothing = trial.suggest_float('smoothing', 0, 1)
             self.model = BernoulliNB(alpha=smoothing)
@@ -143,12 +157,12 @@ class Train:
             train_data = self.train_test_data['train'].select(train_idxs)
             validation_data = self.train_test_data['train'].select(val_idxs)
 
-            X_train = self.tokenizer_vectorizer.get_embeddings(train_data)
+            X_train = train_data['embed']
             y = train_data['label']
 
             self.model.fit(X_train, y)
 
-            X_val = self.tokenizer_vectorizer.get_embeddings(validation_data)
+            X_val = validation_data['embed']
             metrics = compute_metrics_trad(self.model.predict(X_val),
                                            self.model.predict_proba(X_val), validation_data['label'])
 
@@ -163,7 +177,7 @@ class Train:
        Generates metric results from a withheld test set and the fine-tuned models predictions
        :return: The test accuracy
        """
-        X = self.tokenizer_vectorizer.get_embeddings(self.train_test_data['test'])
+        X = self.train_test_data['test']['embed']
         y = self.train_test_data['test']['label']
 
         print("Test Data")
@@ -220,14 +234,16 @@ def main():
         data_dir = 'data/code_search_net_relevance.hf'
         wandb_project = 'JavaDoc-Relevance-Classifier-Renewed'
     elif args.dataset == 'Menagerie':
-        # Data taken from Menagerie and processed for unique docstring/code pairs
-        # Processing in cosine similarity repo
         data_dir = 'data/menagerie_unique_pairs.csv'
         wandb_project = 'JavaDoc-Relevance-Classifier-Menagerie'
+    elif args.dataset == 'Menagerie-Truncated':
+        data_dir = 'data/menagerie_unique_pairs_truncated.csv'
+        wandb_project = 'JavaDoc-Relevance-Classifier-Menagerie-Truncated'
     else:
-        print('Select a dataset from: ' + ' '.join(['CodeSearchNet', 'Menagerie']))
+        print('Select a dataset from: ' + ' '.join(['CodeSearchNet', 'Menagerie', 'Menagerie-Truncated']))
         return
 
+    print('Creating Train object')
     train = Train(
         pre_trained_model=args.pre_trained,
         data_dir=data_dir,
@@ -238,8 +254,12 @@ def main():
         pre_process=args.pre_process
     )
 
+    print('Creating and running study')
+
     study = optuna.create_study(direction='maximize')
     study.optimize(train.objective, n_trials=args.n_trails)
+
+    print('Tidy up')
 
     wandb.finish()
 

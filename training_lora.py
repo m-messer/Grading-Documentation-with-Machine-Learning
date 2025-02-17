@@ -66,7 +66,7 @@ class Train:
 
             print(self.train_test_data['test'].to_pandas()['label'].value_counts())
 
-        self.id2label, self.label2id, label_count = get_label_info(binary=binary)
+        self.id2label, self.label2id, label_count = get_label_info(binary, 'CodeSearchNet')
 
         self.model = AutoModelForSequenceClassification.from_pretrained(pre_trained_model, num_labels=label_count,
                                                                         id2label=self.id2label, label2id=self.label2id)
