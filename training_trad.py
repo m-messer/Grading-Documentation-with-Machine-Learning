@@ -27,11 +27,11 @@ class Train:
     """
     ACCEPTED_MODELS = ['LogisticRegression', 'Bernolli', 'KNeighbours', 'DecisionTree', 'RandomForest']
 
-    def __init__(self, data_dir, wandb_project, model_name, vectorisation_method, pre_trained_model=None,
+    def __init__(self, dataset_name, wandb_project, model_name, vectorisation_method, pre_trained_model=None,
                  binary=False, folds=10, pre_process=False):
         """
         Sets up the training loop, and Weights and Biases logging.
-        :param data_dir: The path of the dataset to use for training and testing
+        :param dataset_name: The name of the dataset to use for training and testing.
         :param wandb_project: The weights and biases project to log results to
         :param model_name: The model name from: 'LogisticRegression', 'Bernolli', 'KNeighbours', 'DecisionTree',
         'RandomForest'
@@ -53,27 +53,43 @@ class Train:
         self.vectorisation_method = vectorisation_method
         self.pre_process = pre_process
 
+        embeddings_dict = {
+            'CodeSearchNet': {
+                'bert-base-uncased': 'data/CodeSearchNet_bert-base-uncased_embeddings.hf',
+                'microsoft/codebert-base': 'data/CodeSearchNet_microsoft_codebert-base_embeddings.hf',
+                None: 'data/code_search_net_relevance.hf'
+            },
+            'Menagerie': {
+                'bert-base-uncased': 'data/Menagerie_bert-base-uncased_embeddings.hf',
+                'microsoft/codebert-base': 'data/Menagerie_microsoft_codebert-base_embeddings.hf',
+                None: 'data/menagerie_unique_pairs.csv'
+            },
+            'Menagerie-Truncated': {
+                'bert-base-uncased': 'data/Menagerie-Truncated_bert-base-uncased_embeddings.hf',
+                'microsoft/codebert-base': 'data/Menagerie-Truncated_microsoft_codebert-base_embeddings.hf',
+                None: 'data/menagerie_unique_pairs.csv'
+            }
+        }
+
+        if dataset_name not in embeddings_dict:
+            print('Unknown Dataset')
+            raise FileNotFoundError('Unknown Dataset')
+
+        if pre_trained_model is not None and pre_trained_model not in embeddings_dict[dataset_name]:
+            print('Unknown Pre-Trained Model')
+            raise FileNotFoundError('Unknown Pre-Trained Model')
+
+        data_dir = embeddings_dict[dataset_name][pre_trained_model]
+
         self.tokenizer_vectorizer = TokenizerVectorizer(vectorization_method=vectorisation_method,
                                                         data_dir=data_dir, binary=binary,
                                                         pre_trained_model=pre_trained_model)
 
-        if data_dir == 'data/code_search_net_relevance.hf':
-            dataset_name = 'CodeSearchNet'
-        elif data_dir == 'data/menagerie_unique_pairs.csv':
-            dataset_name = 'Menagerie'
-        elif data_dir == 'data/menagerie_unique_pairs_truncated.csv':
-            dataset_name = 'Menagerie'
-        else:
-            print('Unknown Dataset')
-            raise FileNotFoundError('Unknown Dataset')
 
         if vectorisation_method == 'pre-trained':
             self.data = self.tokenizer_vectorizer.get_pre_trained_tokenized_data()
         else:
             self.data = self.tokenizer_vectorizer.data
-
-        embeddings = self.tokenizer_vectorizer.get_embeddings(self.data)
-        self.data = self.data.add_column('embed', embeddings)
 
         if pre_process:
             print('Pre-Processing')
@@ -86,7 +102,7 @@ class Train:
             print('OVER SAMPLE DATA')
             print(self.train_test_data)
 
-            if dataset_name == 'Menagerie':
+            if dataset_name == 'Menagerie' or dataset_name == 'Menagerie-Truncated':
                 print(self.train_test_data['test'].to_pandas()['grade'].value_counts())
             else:
                 print(self.train_test_data['test'].to_pandas()['label'].value_counts())
@@ -157,12 +173,18 @@ class Train:
             train_data = self.train_test_data['train'].select(train_idxs)
             validation_data = self.train_test_data['train'].select(val_idxs)
 
-            X_train = train_data['embed']
+            if self.vectorisation_method != 'pre-trained':
+                X_train = self.tokenizer_vectorizer.get_embeddings(train_data)
+            else:
+                X_train = train_data['embed']
             y = train_data['label']
 
             self.model.fit(X_train, y)
 
-            X_val = validation_data['embed']
+            if self.vectorisation_method != 'pre-trained':
+                X_val = self.tokenizer_vectorizer.get_embeddings(validation_data)
+            else:
+                X_val = validation_data['embed']
             metrics = compute_metrics_trad(self.model.predict(X_val),
                                            self.model.predict_proba(X_val), validation_data['label'])
 
@@ -177,7 +199,11 @@ class Train:
        Generates metric results from a withheld test set and the fine-tuned models predictions
        :return: The test accuracy
        """
-        X = self.train_test_data['test']['embed']
+
+        if self.vectorisation_method != 'pre-trained':
+            X = self.tokenizer_vectorizer.get_embeddings(self.train_test_data['test'])
+        else:
+            X = self.train_test_data['test']['embed']
         y = self.train_test_data['test']['label']
 
         print("Test Data")
@@ -231,13 +257,10 @@ def main():
         return
 
     if args.dataset == 'CodeSearchNet':
-        data_dir = 'data/code_search_net_relevance.hf'
         wandb_project = 'JavaDoc-Relevance-Classifier-Renewed'
     elif args.dataset == 'Menagerie':
-        data_dir = 'data/menagerie_unique_pairs.csv'
         wandb_project = 'JavaDoc-Relevance-Classifier-Menagerie'
     elif args.dataset == 'Menagerie-Truncated':
-        data_dir = 'data/menagerie_unique_pairs_truncated.csv'
         wandb_project = 'JavaDoc-Relevance-Classifier-Menagerie-Truncated'
     else:
         print('Select a dataset from: ' + ' '.join(['CodeSearchNet', 'Menagerie', 'Menagerie-Truncated']))
@@ -246,7 +269,7 @@ def main():
     print('Creating Train object')
     train = Train(
         pre_trained_model=args.pre_trained,
-        data_dir=data_dir,
+        dataset_name=args.dataset,
         binary=False,
         wandb_project=wandb_project,
         model_name=args.model,
