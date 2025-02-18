@@ -26,6 +26,23 @@ class Train:
     The class used for training using traditional approaches
     """
     ACCEPTED_MODELS = ['LogisticRegression', 'Bernolli', 'KNeighbours', 'DecisionTree', 'RandomForest']
+    EMBEDDINGS_DICT = {
+        'CodeSearchNet': {
+            'bert-base-uncased': 'data/CodeSearchNet_bert-base-uncased_embeddings.hf',
+            'microsoft/codebert-base': 'data/CodeSearchNet_microsoft_codebert-base_embeddings.hf',
+            None: 'data/code_search_net_relevance.hf'
+        },
+        'Menagerie': {
+            'bert-base-uncased': 'data/Menagerie_bert-base-uncased_embeddings.hf',
+            'microsoft/codebert-base': 'data/Menagerie_microsoft_codebert-base_embeddings.hf',
+            None: 'data/menagerie_unique_pairs.csv'
+        },
+        'Menagerie-Truncated': {
+            'bert-base-uncased': 'data/Menagerie-Truncated_bert-base-uncased_embeddings.hf',
+            'microsoft/codebert-base': 'data/Menagerie-Truncated_microsoft_codebert-base_embeddings.hf',
+            None: 'data/menagerie_unique_pairs.csv'
+        }
+    }
 
     def __init__(self, dataset_name, wandb_project, model_name, vectorisation_method, pre_trained_model=None,
                  binary=False, folds=10, pre_process=False):
@@ -53,33 +70,15 @@ class Train:
         self.vectorisation_method = vectorisation_method
         self.pre_process = pre_process
 
-        embeddings_dict = {
-            'CodeSearchNet': {
-                'bert-base-uncased': 'data/CodeSearchNet_bert-base-uncased_embeddings.hf',
-                'microsoft/codebert-base': 'data/CodeSearchNet_microsoft_codebert-base_embeddings.hf',
-                None: 'data/code_search_net_relevance.hf'
-            },
-            'Menagerie': {
-                'bert-base-uncased': 'data/Menagerie_bert-base-uncased_embeddings.hf',
-                'microsoft/codebert-base': 'data/Menagerie_microsoft_codebert-base_embeddings.hf',
-                None: 'data/menagerie_unique_pairs.csv'
-            },
-            'Menagerie-Truncated': {
-                'bert-base-uncased': 'data/Menagerie-Truncated_bert-base-uncased_embeddings.hf',
-                'microsoft/codebert-base': 'data/Menagerie-Truncated_microsoft_codebert-base_embeddings.hf',
-                None: 'data/menagerie_unique_pairs.csv'
-            }
-        }
-
-        if dataset_name not in embeddings_dict:
+        if dataset_name not in self.EMBEDDINGS_DICT:
             print('Unknown Dataset')
             raise FileNotFoundError('Unknown Dataset')
 
-        if pre_trained_model is not None and pre_trained_model not in embeddings_dict[dataset_name]:
+        if pre_trained_model is not None and pre_trained_model not in self.EMBEDDINGS_DICT[dataset_name]:
             print('Unknown Pre-Trained Model')
             raise FileNotFoundError('Unknown Pre-Trained Model')
 
-        data_dir = embeddings_dict[dataset_name][pre_trained_model]
+        data_dir = self.EMBEDDINGS_DICT[dataset_name][pre_trained_model]
 
         self.tokenizer_vectorizer = TokenizerVectorizer(vectorization_method=vectorisation_method,
                                                         data_dir=data_dir, binary=binary,
@@ -199,7 +198,6 @@ class Train:
        Generates metric results from a withheld test set and the fine-tuned models predictions
        :return: The test accuracy
        """
-
         if self.vectorisation_method != 'pre-trained':
             X = self.tokenizer_vectorizer.get_embeddings(self.train_test_data['test'])
         else:
@@ -281,6 +279,12 @@ def main():
 
     study = optuna.create_study(direction='maximize')
     study.optimize(train.objective, n_trials=args.n_trails)
+
+    print('Save Best Model')
+    artifact = wandb.Artifact("best_trial_params", type="optuna-trial")
+    with artifact.new_file("best_trial.txt") as f:
+        f.write(str(study.best_trial.params))
+    wandb.log_artifact(artifact)
 
     print('Tidy up')
 

@@ -294,3 +294,4 @@ wandb
 data/code_search_net_relevance.hf/
 
 data/raw.csv
+/data/CodeSearchNet_microsoft_codebert-base_embeddings.hf/

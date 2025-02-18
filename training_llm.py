@@ -20,12 +20,18 @@ class Train:
     """
     The class used for fine-tuning existing large languge models
     """
-    def __init__(self, data_dir, wandb_project, pre_trained_model, pre_process=False,
+
+    DATA_DIR_DICT = {
+        'CodeSearchNet': 'data/code_search_net_relevance.hf',
+        'Menagerie': 'data/menagerie_unique_pairs.csv',
+        'Menagerie-Truncated': 'data/menagerie_unique_pairs_truncated.csv'
+    }
+    def __init__(self, dataset_name, wandb_project, pre_trained_model, pre_process=False,
                  binary=False, folds=10):
         """
         The constructor used to setup the HuggingFace trainer and Weights and Biases for logging.
         10-fold CV used by default.
-        :param data_dir: The path of the dataset to use for training and testing
+        :param dataset_name: The name of the dataset to use for training and testing.
         :param wandb_project: The weights and biases project to log results to
         :param pre_trained_model: The HuggingFace model name
         :param pre_process: If the data should be pre-processed before training
@@ -37,12 +43,18 @@ class Train:
         self.training_arguments = None
         set_seed(100)
 
+        print('Setup WandB')
         wandb.login()
 
         self.wandb_project = wandb_project
         self.folds = folds
         self.pre_trained_model = pre_trained_model
         self.pre_process = pre_process
+
+        if dataset_name not in self.DATA_DIR_DICT:
+            raise ValueError(f"Dataset name {dataset_name} not recognised. Please use one of: {self.DATA_DIR_DICT.keys()}")
+
+        data_dir = self.DATA_DIR_DICT[dataset_name]
 
         self.tokenizer_vectorizer = TokenizerVectorizer(vectorization_method='pre-trained', data_dir=data_dir,
                                                         binary=binary, pre_trained_model=pre_trained_model)
@@ -52,6 +64,7 @@ class Train:
         self.train_test_data = self.data.train_test_split(test_size=0.2)
 
         if pre_process:
+            print('Pre-Processing')
             self.data = self.data.class_encode_column("label")
             self.data.to_csv('data/raw.csv')
             self.train_test_data = self.data.train_test_split(test_size=0.2)
@@ -63,7 +76,7 @@ class Train:
 
             print(self.train_test_data['test'].to_pandas()['label'].value_counts())
 
-            self.id2label, self.label2id, label_count = get_label_info(binary, 'CodeSearchNet')
+        self.id2label, self.label2id, label_count = get_label_info(binary, dataset_name)
 
         self.model = AutoModelForSequenceClassification.from_pretrained(pre_trained_model, num_labels=label_count,
                                                                         id2label=self.id2label, label2id=self.label2id)
@@ -76,6 +89,8 @@ class Train:
         :param trial: The optuna trial used for hyperparamter tuning.
         :return: None
         """
+        print('Training with cross validation')
+
         config = dict(trial.params)
         config['trial.number'] = trial.number
 
@@ -167,22 +182,43 @@ def main():
                         help='A HuggingFace model for vectorisation and fine-tuning')
     parser.add_argument('-pre-process', dest='pre_process', default=False, help='Run preprocessing steps',
                         action='store_true')
+    parser.add_argument('-dataset', dest='dataset', default='CodeSearchNet', help='The dataset to use for training and evaluation')
     args = parser.parse_args()
 
     if args.pre_trained is None:
         print("Please supply a hugging face model to fine tune, using -pre-trained")
         return
 
+    if args.dataset == 'CodeSearchNet':
+        wandb_project = 'JavaDoc-Relevance-Classifier-Renewed'
+    elif args.dataset == 'Menagerie':
+        wandb_project = 'JavaDoc-Relevance-Classifier-Menagerie'
+    elif args.dataset == 'Menagerie-Truncated':
+        wandb_project = 'JavaDoc-Relevance-Classifier-Menagerie-Truncated'
+    else:
+        print('Select a dataset from: ' + ' '.join(['CodeSearchNet', 'Menagerie', 'Menagerie-Truncated']))
+        return
+
+    print('Creating Train object')
     train = Train(
         pre_trained_model=args.pre_trained,
-        data_dir='data/code_search_net_relevance.hf',
+        wandb_project=wandb_project,
+        dataset_name=args.dataset,
         binary=False,
-        wandb_project='JavaDoc-Relevance-Classifier-Renewed',
         pre_process=args.pre_process,
     )
 
+    print('Creating and running study')
     study = optuna.create_study(direction='maximize')
     study.optimize(train.objective, n_trials=args.n_trails)
+
+    print('Save Best Model')
+    artifact = wandb.Artifact("best_trial_params", type="optuna-trial")
+    with artifact.new_file("best_trial.txt") as f:
+        f.write(str(study.best_trial.params))
+    wandb.log_artifact(artifact)
+
+    print('Tidy up')
 
     wandb.finish()
 

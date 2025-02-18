@@ -23,12 +23,17 @@ class Train:
     """
     The class used for fine-tuning existing large languge models, with LoRA
     """
-    def __init__(self, data_dir, wandb_project, pre_trained_model, pre_process=False,
+    DATA_DIR_DICT = {
+        'CodeSearchNet': 'data/code_search_net_relevance.hf',
+        'Menagerie': 'data/menagerie_unique_pairs.csv',
+        'Menagerie-Truncated': 'data/menagerie_unique_pairs_truncated.csv'
+    }
+    def __init__(self, dataset_name, wandb_project, pre_trained_model, pre_process=False,
                  binary=False, folds=10):
         """
         The constructor used to setup the HuggingFace trainer and Weights and Biases for logging.
         10-fold CV used by default.
-        :param data_dir: The path of the dataset to use for training and testing
+        :param dataset_name: The name of the dataset to use for training and testing.
         :param wandb_project: The weights and biases project to log results to
         :param pre_trained_model: The HuggingFace model name
         :param pre_process: If the data should be pre-processed before training
@@ -40,6 +45,7 @@ class Train:
         self.training_arguments = None
         set_seed(100)
 
+        print('Setup WandB')
         wandb.login()
 
         self.wandb_project = wandb_project
@@ -55,6 +61,7 @@ class Train:
         self.train_test_data = self.data.train_test_split(test_size=0.2)
 
         if pre_process:
+            print('Pre-Processing')
             self.data = self.data.class_encode_column("label")
             self.data.to_csv('data/raw.csv')
             self.train_test_data = self.data.train_test_split(test_size=0.2)
@@ -80,6 +87,8 @@ class Train:
         :param trial: The optuna trial used for hyperparamter tuning.
         :return: None
         """
+        print('Training with cross validation')
+
 
         learning_rate = trial.suggest_float('learning_rate', 1e-6, 1e-4, log=True)
         batch_size = trial.suggest_categorical('batch_size', [16, 32])
@@ -195,6 +204,7 @@ def main():
                         help='A HuggingFace model for vectorisation and fine-tuning')
     parser.add_argument('-pre-process', dest='pre_process', default=False, help='Run preprocessing steps',
                         action='store_true')
+    parser.add_argument('-dataset', dest='dataset', default='CodeSearchNet', help='The dataset to use for training and evaluation')
     args = parser.parse_args()
 
     if args.pre_trained is None:
@@ -203,14 +213,23 @@ def main():
 
     train = Train(
         pre_trained_model=args.pre_trained,
-        data_dir='data/code_search_net_relevance.hf',
         binary=False,
-        wandb_project='JavaDoc-Relevance-Classifier-Renewed',
+        wandb_project=args.wandb_project,
+        dataset_name=args.dataset,
         pre_process=args.pre_process,
     )
 
+    print('Creating and running study')
     study = optuna.create_study(direction='maximize')
     study.optimize(train.objective, n_trials=args.n_trails)
+
+    print('Save Best Model')
+    artifact = wandb.Artifact("best_trial_params", type="optuna-trial")
+    with artifact.new_file("best_trial.txt") as f:
+        f.write(str(study.best_trial.params))
+    wandb.log_artifact(artifact)
+
+    print('Tidy up')
 
 
 if __name__ == '__main__':
