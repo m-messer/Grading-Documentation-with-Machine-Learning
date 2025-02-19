@@ -134,8 +134,10 @@ def over_sample_code_search_net(original_dataset, binary):
 def over_sample(original_dataset, dataset_name, binary=False):
     if dataset_name == 'CodeSearchNet':
         return over_sample_code_search_net(original_dataset, binary)
-    elif dataset_name == 'Menagerie':
+    elif 'Menagerie' in dataset_name:
         return over_sample_menagerie(original_dataset, binary)
+    else:
+        raise TypeError('Unknown Dataset')
 
 
 def __convert_to_binary(row):
