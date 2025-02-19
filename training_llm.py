@@ -41,6 +41,8 @@ class Train:
 
         self.trainer = None
         self.training_arguments = None
+        self.best_accuracy = 0
+        self.dataset_name = dataset_name
         set_seed(100)
 
         print('Setup WandB')
@@ -68,7 +70,7 @@ class Train:
             self.data = self.data.class_encode_column("label")
             self.data.to_csv('data/raw.csv')
             self.train_test_data = self.data.train_test_split(test_size=0.2)
-            self.train_test_data['train'] = over_sample(self.train_test_data['train'])
+            self.train_test_data['train'] = over_sample(self.train_test_data['train'], dataset_name=dataset_name)
             self.train_test_data['train'].to_csv('data/proc_train.csv')
             self.train_test_data['test'].to_csv('data/proc_test.csv')
             print('OVER SAMPLE DATA')
@@ -76,7 +78,10 @@ class Train:
 
             print(self.train_test_data['test'].to_pandas()['label'].value_counts())
 
+        print('A')
+        print('Data: ', get_label_info(binary, dataset_name))
         self.id2label, self.label2id, label_count = get_label_info(binary, dataset_name)
+        print('B')
 
         self.model = AutoModelForSequenceClassification.from_pretrained(pre_trained_model, num_labels=label_count,
                                                                         id2label=self.id2label, label2id=self.label2id)
@@ -144,8 +149,6 @@ class Train:
 
             self.trainer.train()
 
-        self.trainer.save_model('best_model')
-
     def evaluate(self):
         """
         Generates metric results from a withheld test set and the fine-tuned models predictions
@@ -162,6 +165,12 @@ class Train:
         print("Test Results:")
         print(str(eval_results_formatted))
         wandb.log(eval_results_formatted)
+
+        if eval_results_formatted['test/accuracy'] > self.best_accuracy:
+            self.best_accuracy = eval_results_formatted['test/accuracy']
+            print('Saving best model')
+            self.model.save_pretrained(f"models/{self.dataset_name}_{self.pre_trained_model}")
+
         return eval_results_formatted['test/accuracy']
 
     def objective(self, trial):
@@ -213,8 +222,8 @@ def main():
     study.optimize(train.objective, n_trials=args.n_trails)
 
     print('Save Best Model')
-    artifact = wandb.Artifact("best_trial_params", type="optuna-trial")
-    with artifact.new_file("best_trial.txt") as f:
+    artifact = wandb.Artifact(f"best_trial_{args.pre_trained}", type="optuna-trial")
+    with artifact.new_file("best_hyperparameters.txt") as f:
         f.write(str(study.best_trial.params))
     wandb.log_artifact(artifact)
 

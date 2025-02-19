@@ -19,14 +19,18 @@ def __get_label_info_code_search_net(binary: bool):
 
     return id2label, label2id, label_count
 
-def __get_label_info_menagerie(binary: bool):
+def __get_label_info_menagerie(binary: bool, truncated: bool = False):
     """
     Gets the ID, label and label count dependant if the model training is binary or multi-class.
     :param binary: If the model training is multiclass or not
+    :param truncated: If using Menagerie-Truncated dataset or not.
     :return: The id2label and label2id dictionaries, as well as the label count.
     """
 
-    grades = ['F', 'D-', 'D', 'D+', 'C-', 'C', 'C+', 'B-', 'B', 'B+', 'A-', 'A', 'A+', 'A++']
+    if not truncated:
+        grades = ['F', 'D-', 'D', 'D+', 'C-', 'C', 'C+', 'B-', 'B', 'B+', 'A-', 'A', 'A+', 'A++']
+    else:
+        grades = ['F', 'D', 'C','B', 'A']
 
     if binary:
         id2label = {0: 'fail', 1: 'pass'}
@@ -47,9 +51,11 @@ def __get_label_info_menagerie(binary: bool):
 
 def get_label_info(binary, dataset_name):
     if dataset_name == 'CodeSearchNet':
-        __get_label_info_code_search_net(binary)
-    elif dataset_name =='Menagerie':
-        __get_label_info_menagerie(binary)
+        return __get_label_info_code_search_net(binary)
+    elif 'Menagerie' in dataset_name:
+        return __get_label_info_menagerie(binary, True if 'Truncated' in dataset_name else False)
+    else:
+        raise TypeError('Unknown Dataset')
 
 
 def __format_str(string):
