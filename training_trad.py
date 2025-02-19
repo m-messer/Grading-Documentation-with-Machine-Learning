@@ -1,4 +1,5 @@
 import argparse
+import pickle
 from copy import deepcopy
 from pathlib import Path
 from random import seed
@@ -59,6 +60,8 @@ class Train:
         :param pre_process: If the data should be pre-processed before training
         """
 
+        self.dataset_name = dataset_name
+        self.best_accuracy = 0
         seed(100)
 
         print('Setup WandB')
@@ -95,11 +98,15 @@ class Train:
             self.data = self.data.class_encode_column("label")
             self.data.to_csv('data/raw.csv')
             self.train_test_data = self.data.train_test_split(test_size=0.2)
+            print('AAAA')
+            print(self.train_test_data)
             self.train_test_data['train'] = over_sample(self.train_test_data['train'], dataset_name, binary)
-            self.train_test_data['train'].to_csv('data/proc_train.csv')
-            self.train_test_data['test'].to_csv('data/proc_test.csv')
             print('OVER SAMPLE DATA')
             print(self.train_test_data)
+
+            self.train_test_data['train'].to_csv('data/proc_train.csv')
+            self.train_test_data['test'].to_csv('data/proc_test.csv')
+
 
             if dataset_name == 'Menagerie' or dataset_name == 'Menagerie-Truncated':
                 print(self.train_test_data['test'].to_pandas()['grade'].value_counts())
@@ -215,6 +222,13 @@ class Train:
         print("Test Results:")
         print(str(eval_results_formatted))
         wandb.log(eval_results_formatted)
+
+        if eval_results_formatted['test/accuracy'] > self.best_accuracy:
+            self.best_accuracy = eval_results_formatted['test/accuracy']
+            print('Saving best model')
+            with open(f"models/{self.dataset_name}_{self.vectorisation_method}_{self.model_name}.pkl", "wb") as f:
+                pickle.dump(self.model, f)
+
         return metrics['accuracy']
 
     def objective(self, trial):
@@ -281,10 +295,9 @@ def main():
     study.optimize(train.objective, n_trials=args.n_trails)
 
     print('Save Best Model')
-    artifact = wandb.Artifact("best_trial_params", type="optuna-trial")
-    with artifact.new_file("best_trial.txt") as f:
+    artifact = wandb.Artifact(f"best_trial_{args.vectorizer}_{args.pre_trained}_{args.model}", type="optuna-trial")
+    with artifact.new_file("best_hyperparameters.txt") as f:
         f.write(str(study.best_trial.params))
-    wandb.log_artifact(artifact)
 
     print('Tidy up')
 
