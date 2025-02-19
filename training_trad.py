@@ -98,7 +98,6 @@ class Train:
             self.data = self.data.class_encode_column("label")
             self.data.to_csv('data/raw.csv')
             self.train_test_data = self.data.train_test_split(test_size=0.2)
-            print('AAAA')
             print(self.train_test_data)
             self.train_test_data['train'] = over_sample(self.train_test_data['train'], dataset_name, binary)
             print('OVER SAMPLE DATA')
@@ -225,8 +224,8 @@ class Train:
 
         if eval_results_formatted['test/accuracy'] > self.best_accuracy:
             self.best_accuracy = eval_results_formatted['test/accuracy']
-            print('Saving best model')
-            with open(f"models/{self.dataset_name}_{self.vectorisation_method}_{self.model_name}.pkl", "wb") as f:
+            print('Saving best model as pickle')
+            with open(f"models/{wandb.run.name}_{self.dataset_name}_{self.vectorisation_method}_{self.model_name}.pkl", "wb") as f:
                 pickle.dump(self.model, f)
 
         return metrics['accuracy']
@@ -295,9 +294,8 @@ def main():
     study.optimize(train.objective, n_trials=args.n_trails)
 
     print('Save Best Model')
-    artifact = wandb.Artifact(f"best_trial_{args.vectorizer}_{args.pre_trained}_{args.model}", type="optuna-trial")
-    with artifact.new_file("best_hyperparameters.txt") as f:
-        f.write(str(study.best_trial.params))
+    artifact = wandb.Artifact("best_trial", type="optuna-trial")
+    artifact.add_file(f"models/{train.dataset_name}_{train.vectorisation_method}_{train.model_name}.pkl")
 
     print('Tidy up')
 

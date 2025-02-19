@@ -169,7 +169,7 @@ class Train:
         if eval_results_formatted['test/accuracy'] > self.best_accuracy:
             self.best_accuracy = eval_results_formatted['test/accuracy']
             print('Saving best model')
-            self.model.save_pretrained(f"models/{self.dataset_name}_{self.pre_trained_model}")
+            self.model.save_pretrained(f"models/{wandb.run.name}_{self.dataset_name}_{self.pre_trained_model}")
 
         return eval_results_formatted['test/accuracy']
 
