@@ -119,7 +119,7 @@ class Train:
         else:
             self.labels = [0, 1, 2, 3]
 
-    def train_with_cross_validation(self):
+    def _train_with_cross_validation(self):
         # Generates eval dataset using K-Fold Cross Validation
         folds = StratifiedKFold(n_splits=self.folds)
 
@@ -154,7 +154,7 @@ class Train:
             print(str(eval_results_formatted))
             wandb.log(eval_results_formatted)
 
-    def train_entire_set(self):
+    def _train_entire_set(self):
         train_valid_data = self.train_test_data['train'].train_test_split(test_size=0.2)
         print(train_valid_data)
 
@@ -212,7 +212,7 @@ class Train:
         config = dict(trial.params)
         config['trial.number'] = trial.number
 
-        tags = [self.vectorisation_method, 'TEST']
+        tags = [self.vectorisation_method]
 
         if self.vectorisation_method == 'pre-trained':
             tags = [self.vectorisation_method + ":" + self.tokenizer_vectorizer.pre_trained_model]
@@ -231,9 +231,9 @@ class Train:
         )
 
         if self.folds == 1:
-            self.train_entire_set()
+            self._train_entire_set()
         else:
-            self.train_with_cross_validation()
+            self._train_with_cross_validation()
 
 
     def evaluate(self):
