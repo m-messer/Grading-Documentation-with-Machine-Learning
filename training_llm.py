@@ -78,11 +78,7 @@ class Train:
 
             print(self.train_test_data['test'].to_pandas()['label'].value_counts())
 
-        print('A')
-        print('Data: ', get_label_info(binary, dataset_name))
         self.id2label, self.label2id, label_count = get_label_info(binary, dataset_name)
-        print('B')
-
         self.model = AutoModelForSequenceClassification.from_pretrained(pre_trained_model, num_labels=label_count,
                                                                         id2label=self.id2label, label2id=self.label2id)
         device = "cuda:0" if cuda.is_available() else "cpu"
@@ -99,10 +95,10 @@ class Train:
         config = dict(trial.params)
         config['trial.number'] = trial.number
 
+        tags = [f'folds: {self.folds}']
+
         if self.pre_process:
-            tags = ['preprocessed']
-        else:
-            tags = None
+            tags.append('preprocessed')
 
         wandb.init(
             project=self.wandb_project,
@@ -192,6 +188,7 @@ def main():
     parser.add_argument('-pre-process', dest='pre_process', default=False, help='Run preprocessing steps',
                         action='store_true')
     parser.add_argument('-dataset', dest='dataset', default='CodeSearchNet', help='The dataset to use for training and evaluation')
+    parser.add_argument('-folds', dest='folds', default=10, type=int, help='The number of folds for cross-validation')
     args = parser.parse_args()
 
     if args.pre_trained is None:
@@ -215,6 +212,7 @@ def main():
         dataset_name=args.dataset,
         binary=False,
         pre_process=args.pre_process,
+        folds=args.folds,
     )
 
     print('Creating and running study')

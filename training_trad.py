@@ -149,13 +149,15 @@ class Train:
         config = dict(trial.params)
         config['trial.number'] = trial.number
 
+        tags = [self.vectorisation_method]
+
         if self.vectorisation_method == 'pre-trained':
             tags = [self.vectorisation_method + ":" + self.tokenizer_vectorizer.pre_trained_model]
-        else:
-            tags = [self.vectorisation_method]
 
         if self.pre_process:
             tags.append('preprocessed')
+
+        tags.append(f'folds:{self.folds}')
 
         wandb.init(
             project=self.wandb_project,
@@ -253,6 +255,7 @@ def main():
     parser.add_argument('-pre-process', dest='pre_process', default=False, help='Run preprocessing steps',
                         action='store_true')
     parser.add_argument('-dataset', dest='dataset', default='CodeSearchNet', help='The dataset to use for training and evaluation')
+    parser.add_argument('-folds', dest='folds', default=10, type=int, help='The number of folds for cross-validation')
     args = parser.parse_args()
 
     if args.model not in Train.ACCEPTED_MODELS:
@@ -285,7 +288,8 @@ def main():
         wandb_project=wandb_project,
         model_name=args.model,
         vectorisation_method=args.vectorizer,
-        pre_process=args.pre_process
+        pre_process=args.pre_process,
+        folds=args.folds,
     )
 
     print('Creating and running study')
