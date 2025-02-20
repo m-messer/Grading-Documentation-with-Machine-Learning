@@ -119,54 +119,7 @@ class Train:
         else:
             self.labels = [0, 1, 2, 3]
 
-    def train_with_cross_validation(self, trial):
-        """
-        The training loop used to train the traditional models
-        :param trial: The optuna trial used for hyperparamter tuning.
-        :return: None
-        """
-
-        print('Training with cross validation')
-
-        if self.model_name == 'Bernolli':
-            smoothing = trial.suggest_float('smoothing', 0, 1)
-            self.model = BernoulliNB(alpha=smoothing)
-        elif self.model_name == 'DecisionTree':
-            dt_max_depth = trial.suggest_int('dt_max_depth', 2, 20, log=True)
-            dt_min_samples_leaf = trial.suggest_int('dt_min_samples_leaf', 5, 100, log=True)
-            dt_criterion = trial.suggest_categorical('dt_criterion', ['gini', 'entropy'])
-            self.model = DecisionTreeClassifier(max_depth=dt_max_depth,
-                                                min_samples_leaf=dt_min_samples_leaf, criterion=dt_criterion)
-        elif self.model_name == 'KNeighbours':
-            nn = trial.suggest_int('n_neighbours', 1, 10, log=True)
-            self.model = KNeighborsClassifier(nn)
-        elif self.model_name == 'LogisticRegression':
-            self.model = LogisticRegression(multi_class='multinomial')
-        else:
-            rf_max_depth = trial.suggest_int('rf_max_depth', 2, 32, log=True)
-            self.model = RandomForestClassifier(max_depth=rf_max_depth, n_estimators=10)
-
-        config = dict(trial.params)
-        config['trial.number'] = trial.number
-
-        tags = [self.vectorisation_method]
-
-        if self.vectorisation_method == 'pre-trained':
-            tags = [self.vectorisation_method + ":" + self.tokenizer_vectorizer.pre_trained_model]
-
-        if self.pre_process:
-            tags.append('preprocessed')
-
-        tags.append(f'folds:{self.folds}')
-
-        wandb.init(
-            project=self.wandb_project,
-            config=config,
-            group=self.model_name,
-            tags=tags,
-            reinit=True
-        )
-
+    def train_with_cross_validation(self):
         # Generates eval dataset using K-Fold Cross Validation
         folds = StratifiedKFold(n_splits=self.folds)
 
@@ -200,6 +153,88 @@ class Train:
             print("Eval Results:")
             print(str(eval_results_formatted))
             wandb.log(eval_results_formatted)
+
+    def train_entire_set(self):
+        train_valid_data = self.train_test_data['train'].train_test_split(test_size=0.2)
+        print(train_valid_data)
+
+        train_data = train_valid_data['train']
+        validation_data = train_valid_data['test']
+
+        if self.vectorisation_method != 'pre-trained':
+            X_train = self.tokenizer_vectorizer.get_embeddings(train_data)
+        else:
+            X_train = train_data['embed']
+        y = train_data['label']
+
+        self.model.fit(X_train, y)
+
+        if self.vectorisation_method != 'pre-trained':
+            X_val = self.tokenizer_vectorizer.get_embeddings(validation_data)
+        else:
+            X_val = validation_data['embed']
+        metrics = compute_metrics_trad(self.model.predict(X_val),
+                                       self.model.predict_proba(X_val), validation_data['label'])
+
+        eval_results_formatted = format_metrics(metrics, 'eval')
+
+        print("Eval Results:")
+        print(str(eval_results_formatted))
+        wandb.log(eval_results_formatted)
+
+    def train_model(self, trial):
+        """
+        The training loop used to train the traditional models
+        :param trial: The optuna trial used for hyperparamter tuning.
+        :return: None
+        """
+
+        print('Training model')
+
+        if self.model_name == 'Bernolli':
+            smoothing = trial.suggest_float('smoothing', 0, 1)
+            self.model = BernoulliNB(alpha=smoothing)
+        elif self.model_name == 'DecisionTree':
+            dt_max_depth = trial.suggest_int('dt_max_depth', 2, 20, log=True)
+            dt_min_samples_leaf = trial.suggest_int('dt_min_samples_leaf', 5, 100, log=True)
+            dt_criterion = trial.suggest_categorical('dt_criterion', ['gini', 'entropy'])
+            self.model = DecisionTreeClassifier(max_depth=dt_max_depth,
+                                                min_samples_leaf=dt_min_samples_leaf, criterion=dt_criterion)
+        elif self.model_name == 'KNeighbours':
+            nn = trial.suggest_int('n_neighbours', 1, 10, log=True)
+            self.model = KNeighborsClassifier(nn)
+        elif self.model_name == 'LogisticRegression':
+            self.model = LogisticRegression(multi_class='multinomial')
+        else:
+            rf_max_depth = trial.suggest_int('rf_max_depth', 2, 32, log=True)
+            self.model = RandomForestClassifier(max_depth=rf_max_depth, n_estimators=10)
+
+        config = dict(trial.params)
+        config['trial.number'] = trial.number
+
+        tags = [self.vectorisation_method, 'TEST']
+
+        if self.vectorisation_method == 'pre-trained':
+            tags = [self.vectorisation_method + ":" + self.tokenizer_vectorizer.pre_trained_model]
+
+        if self.pre_process:
+            tags.append('preprocessed')
+
+        tags.append(f'folds:{self.folds}')
+
+        wandb.init(
+            project=self.wandb_project,
+            config=config,
+            group=self.model_name,
+            tags=tags,
+            reinit=True
+        )
+
+        if self.folds == 1:
+            self.train_entire_set()
+        else:
+            self.train_with_cross_validation()
+
 
     def evaluate(self):
         """
@@ -238,7 +273,7 @@ class Train:
        :param trial: The Optuna trial for hyperparameter tuning
        :return: The test accuracy
        """
-        self.train_with_cross_validation(trial)
+        self.train_model(trial)
         test_acc = self.evaluate()
         return test_acc
 
