@@ -69,7 +69,6 @@ class Train:
             print('Pre-Processing')
             self.data = self.data.class_encode_column("label")
             self.data.to_csv('data/raw.csv')
-            self.train_test_data = self.data.train_test_split(test_size=0.2)
             self.train_test_data['train'] = over_sample(self.train_test_data['train'], dataset_name=dataset_name)
             self.train_test_data['train'].to_csv('data/proc_train.csv')
             self.train_test_data['test'].to_csv('data/proc_test.csv')
@@ -130,7 +129,7 @@ class Train:
         :param trial: The optuna trial used for hyperparamter tuning.
         :return: None
         """
-        print('Training with cross validation')
+        print('Training model')
 
         config = dict(trial.params)
         config['trial.number'] = trial.number

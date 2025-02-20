@@ -42,7 +42,9 @@ class Train:
         """
         self.lora_model = None
         self.trainer = None
+        self.best_accuracy = 0
         self.training_arguments = None
+        self.dataset_name = dataset_name
         set_seed(100)
 
         print('Setup WandB')
@@ -53,6 +55,10 @@ class Train:
         self.pre_trained_model = pre_trained_model
         self.pre_process = pre_process
 
+        if dataset_name not in self.DATA_DIR_DICT:
+            raise ValueError(f"Dataset name {dataset_name} not recognised. Please use one of: {self.DATA_DIR_DICT.keys()}")
+
+        data_dir = self.DATA_DIR_DICT[dataset_name]
         self.tokenizer_vectorizer = TokenizerVectorizer(vectorization_method='pre-trained', data_dir=data_dir,
                                                         binary=binary, pre_trained_model=pre_trained_model)
 
@@ -64,8 +70,7 @@ class Train:
             print('Pre-Processing')
             self.data = self.data.class_encode_column("label")
             self.data.to_csv('data/raw.csv')
-            self.train_test_data = self.data.train_test_split(test_size=0.2)
-            self.train_test_data['train'] = over_sample(self.train_test_data['train'])
+            self.train_test_data['train'] = over_sample(self.train_test_data['train'], dataset_name=dataset_name)
             self.train_test_data['train'].to_csv('data/proc_train.csv')
             self.train_test_data['test'].to_csv('data/proc_test.csv')
             print('OVER SAMPLE DATA')
@@ -73,7 +78,7 @@ class Train:
 
             print(self.train_test_data['test'].to_pandas()['label'].value_counts())
 
-        self.id2label, self.label2id, label_count = get_label_info(binary, 'CodeSearchNet')
+        self.id2label, self.label2id, label_count = get_label_info(binary, dataset_name)
 
         self.model = AutoModelForSequenceClassification.from_pretrained(pre_trained_model, num_labels=label_count,
                                                                         id2label=self.id2label, label2id=self.label2id)
@@ -81,13 +86,52 @@ class Train:
         device = "cuda:0" if cuda.is_available() else "cpu"
         self.model.to(device)
 
-    def train_with_cross_validation(self, trial):
+    def _train_with_cross_validation(self):
+        folds = StratifiedKFold(n_splits=self.folds)
+
+        splits = folds.split(np.zeros(self.train_test_data['train'].num_rows), self.train_test_data['train']['label'])
+
+        for train_idxs, val_idxs in splits:
+            train_data = self.train_test_data['train'].select(train_idxs)
+            validation_data = self.train_test_data['train'].select(val_idxs)
+
+            self.trainer = Trainer(
+                model=self.lora_model,
+                args=self.training_arguments,
+                train_dataset=train_data,
+                eval_dataset=validation_data,
+                tokenizer=self.tokenizer_vectorizer.tokenizer,
+                data_collator=self.tokenizer_vectorizer.data_collator,
+                compute_metrics=compute_metrics,
+            )
+
+            self.trainer.train()
+
+    def _train_entire_set(self):
+        train_valid_data = self.train_test_data['train'].train_test_split(test_size=0.2)
+        print(train_valid_data)
+        train_data = train_valid_data['train']
+        validation_data = train_valid_data['test']
+
+        self.trainer = Trainer(
+            model=self.lora_model,
+            args=self.training_arguments,
+            train_dataset=train_data,
+            eval_dataset=validation_data,
+            tokenizer=self.tokenizer_vectorizer.tokenizer,
+            data_collator=self.tokenizer_vectorizer.data_collator,
+            compute_metrics=compute_metrics,
+        )
+
+        self.trainer.train()
+
+    def train_model(self, trial):
         """
         The training loop used to fine-tune the large language model.
         :param trial: The optuna trial used for hyperparamter tuning.
         :return: None
         """
-        print('Training with cross validation')
+        print('Training model')
 
 
         learning_rate = trial.suggest_float('learning_rate', 1e-6, 1e-4, log=True)
@@ -119,10 +163,10 @@ class Train:
         config = dict(trial.params)
         config['trial.number'] = trial.number
 
+        tags = [f'folds: {self.folds}']
+
         if self.pre_process:
-            tags = ['preprocessed']
-        else:
-            tags = None
+            tags.append('preprocessed')
 
         wandb.init(
             project=self.wandb_project,
@@ -148,25 +192,10 @@ class Train:
             report_to=["wandb"]
         )
 
-        folds = StratifiedKFold(n_splits=self.folds)
-
-        splits = folds.split(np.zeros(self.train_test_data['train'].num_rows), self.train_test_data['train']['label'])
-
-        for train_idxs, val_idxs in splits:
-            train_data = self.train_test_data['train'].select(train_idxs)
-            validation_data = self.train_test_data['train'].select(val_idxs)
-
-            self.trainer = Trainer(
-                model=self.lora_model,
-                args=self.training_arguments,
-                train_dataset=train_data,
-                eval_dataset=validation_data,
-                tokenizer=self.tokenizer_vectorizer.tokenizer,
-                data_collator=self.tokenizer_vectorizer.data_collator,
-                compute_metrics=compute_metrics,
-            )
-
-            self.trainer.train()
+        if self.folds == 1:
+            self._train_entire_set()
+        else:
+            self._train_with_cross_validation()
 
     def evaluate(self):
         """
@@ -184,6 +213,12 @@ class Train:
         print("Test Results:")
         print(str(eval_results_formatted))
         wandb.log(eval_results_formatted)
+
+        if eval_results_formatted['test/accuracy'] > self.best_accuracy:
+            self.best_accuracy = eval_results_formatted['test/accuracy']
+            print('Saving best model')
+            self.model.save_pretrained(f"models/{wandb.run.name}_{self.dataset_name}_{self.pre_trained_model}")
+
         return eval_results_formatted['test/accuracy']
 
     def objective(self, trial):
@@ -192,7 +227,7 @@ class Train:
        :param trial: The Optuna trial for hyperparameter tuning
        :return: The test accuracy
        """
-        self.train_with_cross_validation(trial)
+        self.train_model(trial)
         test_acc = self.evaluate()
         return test_acc
 
@@ -205,18 +240,30 @@ def main():
     parser.add_argument('-pre-process', dest='pre_process', default=False, help='Run preprocessing steps',
                         action='store_true')
     parser.add_argument('-dataset', dest='dataset', default='CodeSearchNet', help='The dataset to use for training and evaluation')
+    parser.add_argument('-folds', dest='folds', default=10, type=int, help='The number of folds for cross-validation')
     args = parser.parse_args()
 
     if args.pre_trained is None:
         print("Please supply a hugging face model to fine tune, using -pre-trained")
         return
 
+    if args.dataset == 'CodeSearchNet':
+        wandb_project = 'JavaDoc-Relevance-Classifier-Renewed'
+    elif args.dataset == 'Menagerie':
+        wandb_project = 'JavaDoc-Relevance-Classifier-Menagerie'
+    elif args.dataset == 'Menagerie-Truncated':
+        wandb_project = 'JavaDoc-Relevance-Classifier-Menagerie-Truncated'
+    else:
+        print('Select a dataset from: ' + ' '.join(['CodeSearchNet', 'Menagerie', 'Menagerie-Truncated']))
+        return
+
     train = Train(
         pre_trained_model=args.pre_trained,
         binary=False,
-        wandb_project=args.wandb_project,
+        wandb_project=wandb_project,
         dataset_name=args.dataset,
         pre_process=args.pre_process,
+        folds=args.folds,
     )
 
     print('Creating and running study')
@@ -224,12 +271,14 @@ def main():
     study.optimize(train.objective, n_trials=args.n_trails)
 
     print('Save Best Model')
-    artifact = wandb.Artifact("best_trial_params", type="optuna-trial")
+    artifact = wandb.Artifact(f"best_trial_{args.pre_trained}", type="optuna-trial")
+
     with artifact.new_file("best_trial.txt") as f:
         f.write(str(study.best_trial.params))
     wandb.log_artifact(artifact)
 
     print('Tidy up')
+    wandb.finish()
 
 
 if __name__ == '__main__':
