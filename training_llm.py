@@ -84,7 +84,47 @@ class Train:
         device = "cuda:0" if cuda.is_available() else "cpu"
         self.model.to(device)
 
-    def train_with_cross_validation(self, trial):
+    def _train_with_cross_validation(self):
+        folds = StratifiedKFold(n_splits=self.folds)
+
+        splits = folds.split(np.zeros(self.train_test_data['train'].num_rows), self.train_test_data['train']['label'])
+
+        for train_idxs, val_idxs in splits:
+            train_data = self.train_test_data['train'].select(train_idxs)
+            validation_data = self.train_test_data['train'].select(val_idxs)
+
+            self.trainer = Trainer(
+                model=self.model,
+                args=self.training_arguments,
+                train_dataset=train_data,
+                eval_dataset=validation_data,
+                tokenizer=self.tokenizer_vectorizer.tokenizer,
+                data_collator=self.tokenizer_vectorizer.data_collator,
+                compute_metrics=compute_metrics,
+            )
+
+            self.trainer.train()
+
+    def _train_entire_set(self):
+        train_valid_data = self.train_test_data['train'].train_test_split(test_size=0.2)
+        print(train_valid_data)
+
+        train_data = train_valid_data['train']
+        validation_data = train_valid_data['test']
+
+        self.trainer = Trainer(
+            model=self.model,
+            args=self.training_arguments,
+            train_dataset=train_data,
+            eval_dataset=validation_data,
+            tokenizer=self.tokenizer_vectorizer.tokenizer,
+            data_collator=self.tokenizer_vectorizer.data_collator,
+            compute_metrics=compute_metrics,
+        )
+
+        self.trainer.train()
+
+    def train_model(self, trial):
         """
         The training loop used to fine-tune the large language model.
         :param trial: The optuna trial used for hyperparamter tuning.
@@ -125,25 +165,12 @@ class Train:
             report_to=["wandb"]
         )
 
-        folds = StratifiedKFold(n_splits=self.folds)
+        if self.folds == 1:
+            self._train_entire_set()
+        else:
+            self._train_with_cross_validation()
 
-        splits = folds.split(np.zeros(self.train_test_data['train'].num_rows), self.train_test_data['train']['label'])
 
-        for train_idxs, val_idxs in splits:
-            train_data = self.train_test_data['train'].select(train_idxs)
-            validation_data = self.train_test_data['train'].select(val_idxs)
-
-            self.trainer = Trainer(
-                model=self.model,
-                args=self.training_arguments,
-                train_dataset=train_data,
-                eval_dataset=validation_data,
-                tokenizer=self.tokenizer_vectorizer.tokenizer,
-                data_collator=self.tokenizer_vectorizer.data_collator,
-                compute_metrics=compute_metrics,
-            )
-
-            self.trainer.train()
 
     def evaluate(self):
         """
@@ -175,7 +202,7 @@ class Train:
         :param trial: The Optuna trial for hyperparameter tuning
         :return: The test accuracy
         """
-        self.train_with_cross_validation(trial)
+        self.train_model(trial)
         test_acc = self.evaluate()
         return test_acc
 
