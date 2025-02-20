@@ -293,10 +293,6 @@ def main():
     study = optuna.create_study(direction='maximize')
     study.optimize(train.objective, n_trials=args.n_trails)
 
-    print('Save Best Model')
-    artifact = wandb.Artifact("best_trial", type="optuna-trial")
-    artifact.add_file(f"models/{train.dataset_name}_{train.vectorisation_method}_{train.model_name}.pkl")
-
     print('Tidy up')
 
     wandb.finish()

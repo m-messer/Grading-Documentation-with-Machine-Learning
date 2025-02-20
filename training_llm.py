@@ -221,12 +221,6 @@ def main():
     study = optuna.create_study(direction='maximize')
     study.optimize(train.objective, n_trials=args.n_trails)
 
-    print('Save Best Model')
-    artifact = wandb.Artifact(f"best_trial_{args.pre_trained}", type="optuna-trial")
-    with artifact.new_file("best_hyperparameters.txt") as f:
-        f.write(str(study.best_trial.params))
-    wandb.log_artifact(artifact)
-
     print('Tidy up')
 
     wandb.finish()
