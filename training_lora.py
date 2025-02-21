@@ -9,7 +9,7 @@ from matplotlib import pyplot as plt
 from data_processing.data_processor import get_label_info
 from metrics import compute_metrics
 from tokeniser_vectorizer import TokenizerVectorizer
-from transformers import Trainer, TrainingArguments, AutoModelForSequenceClassification, set_seed
+from transformers import Trainer, TrainingArguments, AutoModelForSequenceClassification, set_seed, EarlyStoppingCallback
 from torch import cuda
 import wandb
 from sklearn.model_selection import StratifiedKFold
@@ -63,13 +63,14 @@ class Train:
                                                         binary=binary, pre_trained_model=pre_trained_model)
 
         self.data = self.tokenizer_vectorizer.get_pre_trained_tokenized_data()
+        self.data = self.data.class_encode_column("label")
+        print('Data: ', data_dir)
+        print(self.data.to_pandas()['label'].value_counts())
 
         self.train_test_data = self.data.train_test_split(test_size=0.2)
 
         if pre_process:
             print('Pre-Processing')
-            self.data = self.data.class_encode_column("label")
-            self.data.to_csv('data/raw.csv')
             self.train_test_data['train'] = over_sample(self.train_test_data['train'], dataset_name=dataset_name)
             self.train_test_data['train'].to_csv('data/proc_train.csv')
             self.train_test_data['test'].to_csv('data/proc_test.csv')
@@ -79,6 +80,12 @@ class Train:
             print(self.train_test_data['test'].to_pandas()['label'].value_counts())
 
         self.id2label, self.label2id, label_count = get_label_info(binary, dataset_name)
+
+        print(f'Label Count: {label_count}, Labels: {self.id2label}')
+        print('Test Labels')
+        print(self.train_test_data['test'].to_pandas()['label'].value_counts())
+        print('Train Labels')
+        print(self.train_test_data['train'].to_pandas()['label'].value_counts())
 
         self.model = AutoModelForSequenceClassification.from_pretrained(pre_trained_model, num_labels=label_count,
                                                                         id2label=self.id2label, label2id=self.label2id)
@@ -90,6 +97,7 @@ class Train:
         folds = StratifiedKFold(n_splits=self.folds)
 
         splits = folds.split(np.zeros(self.train_test_data['train'].num_rows), self.train_test_data['train']['label'])
+        early_stopping = EarlyStoppingCallback(early_stopping_patience=3, early_stopping_threshold=0.001)
 
         for train_idxs, val_idxs in splits:
             train_data = self.train_test_data['train'].select(train_idxs)
@@ -103,6 +111,7 @@ class Train:
                 tokenizer=self.tokenizer_vectorizer.tokenizer,
                 data_collator=self.tokenizer_vectorizer.data_collator,
                 compute_metrics=compute_metrics,
+                callbacks=[early_stopping]
             )
 
             self.trainer.train()
@@ -113,6 +122,8 @@ class Train:
         train_data = train_valid_data['train']
         validation_data = train_valid_data['test']
 
+        early_stopping = EarlyStoppingCallback(early_stopping_patience=3, early_stopping_threshold=0.001)
+
         self.trainer = Trainer(
             model=self.lora_model,
             args=self.training_arguments,
@@ -121,6 +132,7 @@ class Train:
             tokenizer=self.tokenizer_vectorizer.tokenizer,
             data_collator=self.tokenizer_vectorizer.data_collator,
             compute_metrics=compute_metrics,
+            callbacks=[early_stopping]
         )
 
         self.trainer.train()
@@ -135,8 +147,8 @@ class Train:
 
 
         learning_rate = trial.suggest_float('learning_rate', 1e-6, 1e-4, log=True)
-        batch_size = trial.suggest_categorical('batch_size', [16, 32])
-        epochs = trial.suggest_categorical('epochs', [10, 50, 100])
+        batch_size = trial.suggest_categorical('batch_size', [16, 32, 64])
+        epochs = trial.suggest_categorical('epochs', [5, 10, 25, 50])
 
         target_modules = ['query', 'value', 'key', 'dense']
         combinations = []
@@ -185,6 +197,8 @@ class Train:
             per_device_eval_batch_size=batch_size,
             num_train_epochs=epochs,
             evaluation_strategy="epoch",
+            metric_for_best_model="eval_loss",
+            greater_is_better=False,
             save_strategy="epoch",
             load_best_model_at_end=True,
             save_total_limit=5,
