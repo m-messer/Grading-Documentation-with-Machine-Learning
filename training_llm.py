@@ -65,6 +65,7 @@ class Train:
         self.data = self.data.class_encode_column("label")
         print('Data: ', data_dir)
         print(self.data.to_pandas()['label'].value_counts())
+        print(self.data.to_pandas()['grade'].value_counts())
 
         self.train_test_data = self.data.train_test_split(test_size=0.2)
 
@@ -76,9 +77,13 @@ class Train:
             print('OVER SAMPLE DATA')
             print(self.train_test_data)
 
-            print(self.train_test_data['test'].to_pandas()['label'].value_counts())
 
         self.id2label, self.label2id, label_count = get_label_info(binary, dataset_name)
+
+        print(self.id2label)
+        print(self.train_test_data['test'].to_pandas()['label'].value_counts())
+        print(self.train_test_data['test'].to_pandas()['grade'].value_counts())
+
         self.model = AutoModelForSequenceClassification.from_pretrained(pre_trained_model, num_labels=label_count,
                                                                         id2label=self.id2label, label2id=self.label2id)
         device = "cuda:0" if cuda.is_available() else "cpu"
@@ -153,7 +158,7 @@ class Train:
         )
 
         learning_rate = trial.suggest_float('learning_rate', 1e-6, 1e-4, log=True)
-        batch_size = trial.suggest_categorical('batch_size', [16, 32, 64])
+        batch_size = trial.suggest_categorical('batch_size', [16, 32])
         epochs = trial.suggest_categorical('epochs', [5, 10, 25, 50])
 
         self.training_arguments = TrainingArguments(

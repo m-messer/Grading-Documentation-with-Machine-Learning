@@ -77,9 +77,11 @@ class Train:
             print('OVER SAMPLE DATA')
             print(self.train_test_data)
 
-            print(self.train_test_data['test'].to_pandas()['label'].value_counts())
-
         self.id2label, self.label2id, label_count = get_label_info(binary, dataset_name)
+
+        print(self.id2label)
+        print(self.train_test_data['test'].to_pandas()['label'].value_counts())
+        print(self.train_test_data['test'].to_pandas()['grade'].value_counts())
 
         print(f'Label Count: {label_count}, Labels: {self.id2label}')
         print('Test Labels')
@@ -147,7 +149,7 @@ class Train:
 
 
         learning_rate = trial.suggest_float('learning_rate', 1e-6, 1e-4, log=True)
-        batch_size = trial.suggest_categorical('batch_size', [16, 32, 64])
+        batch_size = trial.suggest_categorical('batch_size', [16, 32])
         epochs = trial.suggest_categorical('epochs', [5, 10, 25, 50])
 
         target_modules = ['query', 'value', 'key', 'dense']
