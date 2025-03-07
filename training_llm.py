@@ -88,9 +88,10 @@ class Train:
                                                                         id2label=self.id2label, label2id=self.label2id)
         device = "cuda:0" if cuda.is_available() else "cpu"
         self.model.to(device)
+        # TODO: Change this to hyperparameter?
+        self.early_stopping = EarlyStoppingCallback(early_stopping_patience=3, early_stopping_threshold=0.001)
 
     def _train_with_cross_validation(self):
-        early_stopping = EarlyStoppingCallback(early_stopping_patience=3)
         folds = StratifiedKFold(n_splits=self.folds)
 
         splits = folds.split(np.zeros(self.train_test_data['train'].num_rows), self.train_test_data['train']['label'])
@@ -107,7 +108,7 @@ class Train:
                 tokenizer=self.tokenizer_vectorizer.tokenizer,
                 data_collator=self.tokenizer_vectorizer.data_collator,
                 compute_metrics=compute_metrics,
-                callbacks=[early_stopping]
+                callbacks=[self.early_stopping]
             )
 
             self.trainer.train()
@@ -119,8 +120,6 @@ class Train:
         train_data = train_valid_data['train']
         validation_data = train_valid_data['test']
 
-        early_stopping = EarlyStoppingCallback(early_stopping_patience=3, early_stopping_threshold=0.001)
-
         self.trainer = Trainer(
             model=self.model,
             args=self.training_arguments,
@@ -129,7 +128,7 @@ class Train:
             tokenizer=self.tokenizer_vectorizer.tokenizer,
             data_collator=self.tokenizer_vectorizer.data_collator,
             compute_metrics=compute_metrics,
-            callbacks=[early_stopping]
+            callbacks=[self.early_stopping]
         )
 
         self.trainer.train()
@@ -204,7 +203,7 @@ class Train:
         if eval_results_formatted['test/accuracy'] > self.best_accuracy:
             self.best_accuracy = eval_results_formatted['test/accuracy']
             print('Saving best model')
-            self.model.save_pretrained(f"models/{wandb.run.name}_{self.dataset_name}_{self.pre_trained_model}")
+            self.model.save_pretrained(f"models/{wandb.run.name}_fine_tuned_{self.dataset_name}_{self.pre_trained_model}")
 
         return eval_results_formatted['test/accuracy']
 

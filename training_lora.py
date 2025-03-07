@@ -95,11 +95,13 @@ class Train:
         device = "cuda:0" if cuda.is_available() else "cpu"
         self.model.to(device)
 
+        # TODO: Change this to hyperparameter?
+        self.early_stopping = EarlyStoppingCallback(early_stopping_patience=3, early_stopping_threshold=0.001)
+
     def _train_with_cross_validation(self):
         folds = StratifiedKFold(n_splits=self.folds)
 
         splits = folds.split(np.zeros(self.train_test_data['train'].num_rows), self.train_test_data['train']['label'])
-        early_stopping = EarlyStoppingCallback(early_stopping_patience=3, early_stopping_threshold=0.001)
 
         for train_idxs, val_idxs in splits:
             train_data = self.train_test_data['train'].select(train_idxs)
@@ -113,7 +115,7 @@ class Train:
                 tokenizer=self.tokenizer_vectorizer.tokenizer,
                 data_collator=self.tokenizer_vectorizer.data_collator,
                 compute_metrics=compute_metrics,
-                callbacks=[early_stopping]
+                callbacks=[self.early_stopping]
             )
 
             self.trainer.train()
@@ -124,8 +126,6 @@ class Train:
         train_data = train_valid_data['train']
         validation_data = train_valid_data['test']
 
-        early_stopping = EarlyStoppingCallback(early_stopping_patience=3, early_stopping_threshold=0.001)
-
         self.trainer = Trainer(
             model=self.lora_model,
             args=self.training_arguments,
@@ -134,7 +134,7 @@ class Train:
             tokenizer=self.tokenizer_vectorizer.tokenizer,
             data_collator=self.tokenizer_vectorizer.data_collator,
             compute_metrics=compute_metrics,
-            callbacks=[early_stopping]
+            callbacks=[self.early_stopping]
         )
 
         self.trainer.train()
@@ -233,7 +233,7 @@ class Train:
         if eval_results_formatted['test/accuracy'] > self.best_accuracy:
             self.best_accuracy = eval_results_formatted['test/accuracy']
             print('Saving best model')
-            self.model.save_pretrained(f"models/{wandb.run.name}_{self.dataset_name}_{self.pre_trained_model}")
+            self.model.save_pretrained(f"models/{wandb.run.name}_lora_{self.dataset_name}_{self.pre_trained_model}")
 
         return eval_results_formatted['test/accuracy']
 
@@ -285,13 +285,6 @@ def main():
     print('Creating and running study')
     study = optuna.create_study(direction='maximize')
     study.optimize(train.objective, n_trials=args.n_trails)
-
-    print('Save Best Model')
-    artifact = wandb.Artifact(f"best_trial_{args.pre_trained}", type="optuna-trial")
-
-    with artifact.new_file("best_trial.txt") as f:
-        f.write(str(study.best_trial.params))
-    wandb.log_artifact(artifact)
 
     print('Tidy up')
     wandb.finish()
