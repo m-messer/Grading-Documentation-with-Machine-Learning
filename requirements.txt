@@ -1,5 +1,5 @@
 pandas
-torch
+torch==2.5.1
 datasets
 transformers
 huggingface-hub>=0.17.0
