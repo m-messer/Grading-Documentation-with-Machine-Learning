@@ -1,3 +1,5 @@
+import os
+
 from sklearn.feature_extraction.text import CountVectorizer, TfidfVectorizer
 from transformers import AutoTokenizer, DataCollatorWithPadding, AutoModel
 import torch
@@ -47,6 +49,7 @@ class TokenizerVectorizer:
                 self.tokenizer = AutoTokenizer.from_pretrained(pre_trained_model)
 
                 if self.tokenizer.pad_token is None:
+                    print('Defining Pad Token for Tokenizer')
                     self.tokenizer.add_special_tokens({'pad_token': '[PAD]'})
 
                 self.vectorizer = AutoModel.from_pretrained(self.pre_trained_model)
@@ -92,12 +95,21 @@ class TokenizerVectorizer:
         :param data: The data to vectorise
         :return: The context embedding vectors
         """
+        checkpoint_file = "data/embeddings_checkpoint.npz"
+        batch_size = 100
 
-        embeddings = []
+        if os.path.exists(checkpoint_file):
+            checkpoint = np.load(checkpoint_file, allow_pickle=True)
+            embeddings = checkpoint["embeddings"].tolist()
+            last_index = int(checkpoint["last_index"]) + 1
+            print(f"Resuming from index {last_index}")
+        else:
+            embeddings = []
+            last_index = 0
 
-        for row in tqdm(data):
+        for i in tqdm(range(last_index, len(data))):
             # Get first element of the tensor to get the 2D array of the embeddings
-            embed = self.vectorizer(torch.tensor(row['input_ids'])[None, :])[0][0].detach().numpy()
+            embed = self.vectorizer(torch.tensor(data[i]['input_ids'])[None, :])[0][0].detach().numpy()
             pad_size = self.max_size - embed.shape[0]
             pad = np.pad(embed, [(0, pad_size), (0, 0)], mode='constant')
 
@@ -105,9 +117,15 @@ class TokenizerVectorizer:
 
             embeddings.append(means)
 
+            if (i + 1) % batch_size == 0:
+                np.savez_compressed(checkpoint_file, embeddings=np.array(embeddings), last_index=i)
+                print(f"Checkpoint saved at index {i}")
+
         return embeddings
 
 
 if __name__ == "__main__":
-    data_curator = TokenizerVectorizer(vectorization_method='TfIdf', pre_trained_model='microsoft/codebert-base',
-                                       data_dir='../data/code_search_net_relevance.hf')
+    data_curator = TokenizerVectorizer(vectorization_method='pre-trained', pre_trained_model='mistralai/Mistral-7B-v0.3',
+                                       data_dir='data/menagerie.hf')
+
+    print(data_curator.data)
