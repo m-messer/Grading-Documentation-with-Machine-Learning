@@ -25,8 +25,8 @@ class Train:
     """
     DATA_DIR_DICT = {
         'CodeSearchNet': 'data/code_search_net_relevance.hf',
-        'Menagerie': 'data/menagerie_unique_pairs.csv',
-        'Menagerie-Truncated': 'data/menagerie_unique_pairs_truncated.csv'
+        'Menagerie': 'data/menagerie.hf',
+        'Menagerie-Truncated': 'data/menagerie-truncated.hf'
     }
     def __init__(self, dataset_name, wandb_project, pre_trained_model, pre_process=False,
                  binary=False, folds=10):
@@ -95,6 +95,8 @@ class Train:
         device = "cuda:0" if cuda.is_available() else "cpu"
         self.model.to(device)
 
+        self.model.resize_token_embeddings(len(self.tokenizer_vectorizer.tokenizer))
+
         # TODO: Change this to hyperparameter?
         self.early_stopping = EarlyStoppingCallback(early_stopping_patience=3, early_stopping_threshold=0.001)
 
@@ -152,6 +154,8 @@ class Train:
         batch_size = trial.suggest_categorical('batch_size', [16, 32])
         epochs = trial.suggest_categorical('epochs', [5, 10, 25, 50])
 
+
+        # TODO: Dynamically get modules and log to WandB
         target_modules = ['query', 'value', 'key', 'dense']
         combinations = []
 

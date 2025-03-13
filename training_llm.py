@@ -23,8 +23,8 @@ class Train:
 
     DATA_DIR_DICT = {
         'CodeSearchNet': 'data/code_search_net_relevance.hf',
-        'Menagerie': 'data/menagerie_unique_pairs.csv',
-        'Menagerie-Truncated': 'data/menagerie_unique_pairs_truncated.csv'
+        'Menagerie': 'data/menagerie.hf',
+        'Menagerie-Truncated': 'data/menagerie-truncated.hf'
     }
     def __init__(self, dataset_name, wandb_project, pre_trained_model, pre_process=False,
                  binary=False, folds=10):
@@ -86,12 +86,26 @@ class Train:
 
         self.model = AutoModelForSequenceClassification.from_pretrained(pre_trained_model, num_labels=label_count,
                                                                         id2label=self.id2label, label2id=self.label2id)
+
         device = "cuda:0" if cuda.is_available() else "cpu"
         self.model.to(device)
-        # TODO: Change this to hyperparameter?
-        self.early_stopping = EarlyStoppingCallback(early_stopping_patience=3, early_stopping_threshold=0.001)
+
+        print(self.model.config)
+        if self.model.config.pad_token_id is None:
+            print('Defining Pad Token for Model')
+            print(self.tokenizer_vectorizer.tokenizer.encode('[PAD]'))
+            self.model.config.pad_token_id = self.tokenizer_vectorizer.tokenizer.pad_token_id
+            print(self.model.config.pad_token_id)
+
+        self.model.resize_token_embeddings(len(self.tokenizer_vectorizer.tokenizer))
+
+        print('Token Size, Model Size')
+        print(self.tokenizer_vectorizer.tokenizer.vocab_size, self.model.config.vocab_size)
+        # assert self.tokenizer_vectorizer.tokenizer.vocab_size == self.model.config.vocab_size
 
     def _train_with_cross_validation(self):
+        # TODO: Change this to hyperparameter?
+        early_stopping = EarlyStoppingCallback(early_stopping_patience=3)
         folds = StratifiedKFold(n_splits=self.folds)
 
         splits = folds.split(np.zeros(self.train_test_data['train'].num_rows), self.train_test_data['train']['label'])
@@ -108,7 +122,7 @@ class Train:
                 tokenizer=self.tokenizer_vectorizer.tokenizer,
                 data_collator=self.tokenizer_vectorizer.data_collator,
                 compute_metrics=compute_metrics,
-                callbacks=[self.early_stopping]
+                callbacks=[early_stopping]
             )
 
             self.trainer.train()
@@ -120,6 +134,9 @@ class Train:
         train_data = train_valid_data['train']
         validation_data = train_valid_data['test']
 
+        # TODO: Change this to hyperparameter?
+        early_stopping = EarlyStoppingCallback(early_stopping_patience=3, early_stopping_threshold=0.001)
+
         self.trainer = Trainer(
             model=self.model,
             args=self.training_arguments,
@@ -128,7 +145,7 @@ class Train:
             tokenizer=self.tokenizer_vectorizer.tokenizer,
             data_collator=self.tokenizer_vectorizer.data_collator,
             compute_metrics=compute_metrics,
-            callbacks=[self.early_stopping]
+            callbacks=[early_stopping]
         )
 
         self.trainer.train()
@@ -157,7 +174,8 @@ class Train:
         )
 
         learning_rate = trial.suggest_float('learning_rate', 1e-6, 1e-4, log=True)
-        batch_size = trial.suggest_categorical('batch_size', [16, 32])
+        # batch_size = trial.suggest_categorical('batch_size', [16, 32])
+        batch_size=2
         epochs = trial.suggest_categorical('epochs', [5, 10, 25, 50])
 
         self.training_arguments = TrainingArguments(
@@ -173,7 +191,8 @@ class Train:
             load_best_model_at_end=True,
             save_total_limit=5,
             push_to_hub=False,
-            report_to=["wandb"]
+            report_to=["wandb"],
+            fp16='bert' not in self.pre_trained_model,
         )
 
         if self.folds == 1:
