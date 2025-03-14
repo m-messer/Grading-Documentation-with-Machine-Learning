@@ -40,7 +40,7 @@ class TokenizerVectorizer:
 
         self.vectorizer_method = vectorization_method
 
-        if vectorization_method == 'pre-trained':
+        if vectorization_method == 'pre-trained' or vectorization_method == 'fine-tuned':
             if pre_trained_model is None:
                 message = "If using a pre-trained model for vectorisation, please supply"
                 raise MissingParameterError(message)
@@ -52,7 +52,9 @@ class TokenizerVectorizer:
                     print('Defining Pad Token for Tokenizer')
                     self.tokenizer.add_special_tokens({'pad_token': '[PAD]'})
 
-                self.vectorizer = AutoModel.from_pretrained(self.pre_trained_model)
+                if vectorization_method != 'fine-tuned':
+                    print('Loading Vectorizer')
+                    self.vectorizer = AutoModel.from_pretrained(self.pre_trained_model)
                 self.data_collator = DataCollatorWithPadding(tokenizer=self.tokenizer)
         elif vectorization_method == 'BoW':
             self.vectorizer = CountVectorizer()
