@@ -1,19 +1,15 @@
 import argparse
-from pathlib import Path
 
 import optuna
-from datasets import DatasetDict
-from matplotlib import pyplot as plt
-
 from data_processing.data_processor import get_label_info
 from metrics import compute_metrics
 from tokeniser_vectorizer import TokenizerVectorizer
-from transformers import Trainer, TrainingArguments, AutoModelForSequenceClassification, set_seed, EarlyStoppingCallback
+from transformers import Trainer, TrainingArguments, AutoModelForSequenceClassification, set_seed, \
+    EarlyStoppingCallback
 from torch import cuda
 import wandb
 from sklearn.model_selection import StratifiedKFold
 import numpy as np
-import seaborn as sns
 from data_processing.data_processor import over_sample
 
 class Train:
@@ -58,8 +54,12 @@ class Train:
 
         data_dir = self.DATA_DIR_DICT[dataset_name]
 
-        self.tokenizer_vectorizer = TokenizerVectorizer(vectorization_method='pre-trained', data_dir=data_dir,
+        self.tokenizer_vectorizer = TokenizerVectorizer(vectorization_method='fine-tuned', data_dir=data_dir,
                                                         binary=binary, pre_trained_model=pre_trained_model)
+
+
+        if pre_trained_model in ['mistralai/Mistral-7B-v0.3', 'meta-llama/Llama-3.2-3B']:
+            self.tokenizer_vectorizer.tokenizer.model_max_length = 128
 
         self.data = self.tokenizer_vectorizer.get_pre_trained_tokenized_data()
         self.data = self.data.class_encode_column("label")
@@ -87,6 +87,9 @@ class Train:
         self.model = AutoModelForSequenceClassification.from_pretrained(pre_trained_model, num_labels=label_count,
                                                                         id2label=self.id2label, label2id=self.label2id)
 
+        if pre_trained_model in ['mistralai/Mistral-7B-v0.3', 'meta-llama/Llama-3.2-3B']:
+            self.model.gradient_checkpointing_enable()
+
         device = "cuda:0" if cuda.is_available() else "cpu"
         self.model.to(device)
 
@@ -97,7 +100,7 @@ class Train:
             self.model.config.pad_token_id = self.tokenizer_vectorizer.tokenizer.pad_token_id
             print(self.model.config.pad_token_id)
 
-        self.model.resize_token_embeddings(len(self.tokenizer_vectorizer.tokenizer))
+            self.model.resize_token_embeddings(len(self.tokenizer_vectorizer.tokenizer))
 
         print('Token Size, Model Size')
         print(self.tokenizer_vectorizer.tokenizer.vocab_size, self.model.config.vocab_size)
@@ -125,7 +128,16 @@ class Train:
                 callbacks=[early_stopping]
             )
 
-            self.trainer.train()
+            try:
+                self.trainer.train()
+            except RuntimeError as e:
+                if "CUDA out of memory" in str(e):
+                    print("CUDA OOM error occurred!")
+                    print(cuda.memory_summary())
+                    cuda.empty_cache()
+                    return  # Stop training if OOM occurs
+            else:
+                raise  # Re-raise non-OOM errors
 
     def _train_entire_set(self):
         train_valid_data = self.train_test_data['train'].train_test_split(test_size=0.2)
@@ -148,7 +160,16 @@ class Train:
             callbacks=[early_stopping]
         )
 
-        self.trainer.train()
+        try:
+            self.trainer.train()
+        except RuntimeError as e:
+            if "CUDA out of memory" in str(e):
+                print("CUDA OOM error occurred!")
+                print(cuda.memory_summary())
+                cuda.empty_cache()
+                return  # Stop training if OOM occurs
+            else:
+                raise  # Re-raise non-OOM errors
 
     def train_model(self, trial):
         """
@@ -174,8 +195,14 @@ class Train:
         )
 
         learning_rate = trial.suggest_float('learning_rate', 1e-6, 1e-4, log=True)
-        # batch_size = trial.suggest_categorical('batch_size', [16, 32])
-        batch_size=2
+
+        if self.pre_trained_model in ['mistralai/Mistral-7B-v0.3', 'meta-llama/Llama-3.2-3B']:
+            batch_size=1
+            fp16=True
+        else:
+            batch_size = trial.suggest_categorical('batch_size', [16, 32])
+            fp16=True
+
         epochs = trial.suggest_categorical('epochs', [5, 10, 25, 50])
 
         self.training_arguments = TrainingArguments(
@@ -192,13 +219,16 @@ class Train:
             save_total_limit=5,
             push_to_hub=False,
             report_to=["wandb"],
-            fp16='bert' not in self.pre_trained_model,
+            fp16=fp16,
         )
 
         if self.folds == 1:
             self._train_entire_set()
         else:
             self._train_with_cross_validation()
+
+        print("GPU Memory Usage:")
+        print(cuda.memory_summary())
 
 
 
@@ -262,6 +292,9 @@ def main():
         print('Select a dataset from: ' + ' '.join(['CodeSearchNet', 'Menagerie', 'Menagerie-Truncated']))
         return
 
+    print('Clearing Torch Cache')
+    cuda.empty_cache()
+    cuda.reset_peak_memory_stats()
     print('Creating Train object')
     train = Train(
         pre_trained_model=args.pre_trained,
