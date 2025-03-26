@@ -136,8 +136,8 @@ class Train:
                     print(cuda.memory_summary())
                     cuda.empty_cache()
                     return  # Stop training if OOM occurs
-            else:
-                raise  # Re-raise non-OOM errors
+                else:
+                    raise RuntimeError(e)  # Re-raise non-OOM errors
 
     def _train_entire_set(self):
         train_valid_data = self.train_test_data['train'].train_test_split(test_size=0.2)
@@ -169,7 +169,7 @@ class Train:
                 cuda.empty_cache()
                 return  # Stop training if OOM occurs
             else:
-                raise  # Re-raise non-OOM errors
+                raise RuntimeError(e)  # Re-raise non-OOM errors
 
     def train_model(self, trial):
         """
@@ -201,7 +201,7 @@ class Train:
             fp16=True
         else:
             batch_size = trial.suggest_categorical('batch_size', [16, 32])
-            fp16=True
+            fp16=False
 
         epochs = trial.suggest_categorical('epochs', [5, 10, 25, 50])
 
@@ -237,6 +237,7 @@ class Train:
         Generates metric results from a withheld test set and the fine-tuned models predictions
         :return: The test accuracy
         """
+        print('Evaluating')
         self.model.eval()
 
         model_predictions = self.trainer.predict(self.train_test_data['test'])

@@ -95,7 +95,16 @@ class Train:
         device = "cuda:0" if cuda.is_available() else "cpu"
         self.model.to(device)
 
-        self.model.resize_token_embeddings(len(self.tokenizer_vectorizer.tokenizer))
+        if self.model.config.pad_token_id is None:
+            print('Defining Pad Token for Model')
+            print(self.tokenizer_vectorizer.tokenizer.encode('[PAD]'))
+            self.model.config.pad_token_id = self.tokenizer_vectorizer.tokenizer.pad_token_id
+            print(self.model.config.pad_token_id)
+
+            self.model.resize_token_embeddings(len(self.tokenizer_vectorizer.tokenizer))
+
+        print('Token Size, Model Size')
+        print(self.tokenizer_vectorizer.tokenizer.vocab_size, self.model.config.vocab_size)
 
         # TODO: Change this to hyperparameter?
         self.early_stopping = EarlyStoppingCallback(early_stopping_patience=3, early_stopping_threshold=0.001)
@@ -120,7 +129,16 @@ class Train:
                 callbacks=[self.early_stopping]
             )
 
-            self.trainer.train()
+            try:
+                self.trainer.train()
+            except RuntimeError as e:
+                if "CUDA out of memory" in str(e):
+                    print("CUDA OOM error occurred!")
+                    print(cuda.memory_summary())
+                    cuda.empty_cache()
+                    return  # Stop training if OOM occurs
+                else:
+                    raise RuntimeError(e)  # Re-raise non-OOM errors
 
     def _train_entire_set(self):
         train_valid_data = self.train_test_data['train'].train_test_split(test_size=0.2)
@@ -139,7 +157,16 @@ class Train:
             callbacks=[self.early_stopping]
         )
 
-        self.trainer.train()
+        try:
+            self.trainer.train()
+        except RuntimeError as e:
+            if "CUDA out of memory" in str(e):
+                print("CUDA OOM error occurred!")
+                print(cuda.memory_summary())
+                cuda.empty_cache()
+                return  # Stop training if OOM occurs
+            else:
+                raise RuntimeError(e)  # Re-raise non-OOM errors
 
     def train_model(self, trial):
         """
