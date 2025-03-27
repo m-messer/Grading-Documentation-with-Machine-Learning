@@ -64,7 +64,7 @@ def __format_str(string):
     return string
 
 
-def __concat_nl_and_code(data):
+def concat_nl_and_code(data):
     data['text'] = __format_str(data['query'] + '<CODESPLIT>' + data['func_code_string'])
 
     return data
@@ -91,7 +91,7 @@ def get_data(data_dir: str, binary: bool = False):
         data = load_dataset("csv", data_files=data_dir)
         data = data['train'].remove_columns(['hash', 'grades', 'grade_count'])
         data = data.rename_columns({'function': 'func_code_string', 'docstring': 'query'})
-        data = data.map(__concat_nl_and_code)
+        data = data.map(concat_nl_and_code)
         data = data.map(__map_grades_to_label_multi)
 
     if binary:
