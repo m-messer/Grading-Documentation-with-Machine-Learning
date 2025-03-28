@@ -20,26 +20,25 @@ def load_pipeline(tokenizer, filename):
 
 def grade(pipeline, data, i):
     print("Grading")
-    # TODO: Return DataFrame with grades
+
     predictions = []
     for index, row in tqdm(data.iterrows()):
-        out_dict = row.to_dict()
-        out_dict['iteration'] = i
         try:
-            pred = pipeline(row['text'])
-            out_dict['prediction'] = pred[0]['label']
+            if len(row['text']) < pipeline.tokenizer.model_max_length:
+                pred = pipeline(row['text'])
+                predictions.append(pred[0]['label'])
+            else:
+                predictions.append(None)
         except RuntimeError as e:
             if 'The expanded size of the tensor' in str(e):
-                print("Skipping {}".format(row['text']))
-                out_dict['prediction'] = None
+                print("Skipping")
+                predictions.append(None)
             else:
                 raise RuntimeError(e)
 
-        predictions.append(out_dict)
-        print(out_dict)
-
+    data[f'predictions_{i}'] = predictions
     print("Grading done")
-    return pd.DataFrame(predictions)
+    return data
 
 def main():
     parser = argparse.ArgumentParser(description='Evaluate consistency of model')
@@ -61,15 +60,11 @@ def main():
     CONSISTENCY_RUNS = 4
 
 
-    consistency_grades = []
     for i in range(CONSISTENCY_RUNS):
-        consistency_grades.append(grade(pipeline, data, i))
-
-    consistency_grades_df = pd.concat(consistency_grades)
-
+        data = grade(pipeline, data, i)
 
     print('Saving...')
-    consistency_grades_df.to_csv('data/consistency_grades.csv', index=False)
+    data.to_csv('data/consistency_grades.csv', index=False)
 
 
 if __name__ == "__main__":
