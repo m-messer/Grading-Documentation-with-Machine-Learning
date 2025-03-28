@@ -6,11 +6,6 @@ import torch
 from tqdm import tqdm
 from transformers import pipeline
 
-
-# TODO
-# 4. Refactor Grade x4
-# 5. Save to file
-
 def load_pipeline(tokenizer, filename):
     print("Loading pipeline from {}".format(filename))
     device = torch.device("cuda:0" if torch.cuda.is_available() else "cpu")
@@ -64,7 +59,7 @@ def main():
         data = grade(pipeline, data, i)
 
     print('Saving...')
-    data.to_csv('data/consistency_grades.csv', index=False)
+    data.to_csv('data/consistency_grades_40_sample.csv', index=False)
 
 
 if __name__ == "__main__":
