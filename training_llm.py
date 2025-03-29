@@ -62,7 +62,16 @@ class Train:
             self.tokenizer_vectorizer.tokenizer.model_max_length = 128
 
         self.data = self.tokenizer_vectorizer.get_pre_trained_tokenized_data()
-        self.data = self.data.class_encode_column("label")
+        self.data = self.data.class_encode_column("label") #TODO: Possibly remove or change id2label for model
+
+        unique_grades_df = self.data.to_pandas()
+        unique_grades_df = unique_grades_df.drop_duplicates(subset=['grade', 'label'])[['grade', 'label']].copy()
+        self.id2label = dict(zip(unique_grades_df['label'], unique_grades_df['grade']))
+        self.label2id = dict(zip(unique_grades_df['grade'], unique_grades_df['label']))
+
+        print(self.id2label)
+        print(self.label2id)
+
         print('Data: ', data_dir)
         print(self.data.to_pandas()['label'].value_counts())
         print(self.data.to_pandas()['grade'].value_counts())
@@ -77,14 +86,11 @@ class Train:
             print('OVER SAMPLE DATA')
             print(self.train_test_data)
 
-
-        self.id2label, self.label2id, label_count = get_label_info(binary, dataset_name)
-
         print(self.id2label)
         print(self.train_test_data['test'].to_pandas()['label'].value_counts())
         print(self.train_test_data['test'].to_pandas()['grade'].value_counts())
 
-        self.model = AutoModelForSequenceClassification.from_pretrained(pre_trained_model, num_labels=label_count,
+        self.model = AutoModelForSequenceClassification.from_pretrained(pre_trained_model, num_labels=len(self.id2label),
                                                                         id2label=self.id2label, label2id=self.label2id)
 
         if pre_trained_model in ['mistralai/Mistral-7B-v0.3', 'meta-llama/Llama-3.2-3B']:

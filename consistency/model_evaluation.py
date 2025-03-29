@@ -7,9 +7,12 @@ from tqdm import tqdm
 from transformers import pipeline
 
 def load_pipeline(tokenizer, filename):
+    id2label = {1: 'A', 2: 'A+', 6: 'B', 7: 'B+', 3: 'A++', 5: 'B-', 0: 'A-', 4: 'C'}
     print("Loading pipeline from {}".format(filename))
     device = torch.device("cuda:0" if torch.cuda.is_available() else "cpu")
     pipe = pipeline(task='text-classification', tokenizer=tokenizer, model=filename, device=device)
+    pipe.model.config.id2label = id2label
+    print(pipe)
     print("Pipeline loaded")
     return pipe
 
@@ -59,7 +62,7 @@ def main():
         data = grade(pipeline, data, i)
 
     print('Saving...')
-    data.to_csv('data/consistency_grades_40_sample.csv', index=False)
+    data.to_csv(f'data/consistency_grades_sample.csv', index=False)
 
 
 if __name__ == "__main__":
